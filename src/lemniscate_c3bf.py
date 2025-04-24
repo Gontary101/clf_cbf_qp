@@ -34,7 +34,7 @@ class ClfIrisController(object):
         self.ns = ns
         self.use_gz = pget("use_model_states", False)
         self.xy_offset = None
-        self.z_offset = None # Likely unused for flat trajectory, but kept for consistency
+        self.z_offset = None 
 
         self.m = pget("mass", 1.5)
         self.g = pget("gravity", 9.81)
@@ -54,22 +54,7 @@ class ClfIrisController(object):
 
         # New Lissajous parameters
         self.traj_a = pget("traj_a", 20.0) # Controls size in X
-        # self.traj_b = pget("traj_b", 10.0) # Controls size in Y (calculated as a/2 below)
-        # self.traj_z_amplitude = pget("traj_z_amplitude", 0.0) # Set to 0 for flat trajectory
-
-        # Comment out Helix parameters
-        # self.d_start = pget("helix_start_diameter", 40.0)
-        # self.d_end = pget("helix_end_diameter", 15.0)
-        # self.height = pget("helix_height", 30.0)
-        # self.laps = pget("helix_laps", 4.0)
-
-        # Comment out Helix precomputations
-        # self.r0 = 0.5 * self.d_start
-        # theta_tot = self.laps * 2.0 * math.pi
-        # self.k_r = (self.r0 - 0.5 * self.d_end) / theta_tot
-        # self.k_z = self.height / theta_tot
-
-        # Adjust default takeoff x to match Lissajous start
+       
         tx = pget("takeoff_x", self.traj_a) # Default takeoff x is 'a' of Lissajous
         ty = pget("takeoff_y", 0.0)
         th = pget("takeoff_height", 3.0)

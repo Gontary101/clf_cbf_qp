@@ -138,17 +138,13 @@ class Plotter(object):
     def cb_state(self,msg):
         if msg.data=="TRAJ" and not self.rec:
             self.rec=True
-            self.t0 = None # Reset t0 when TRAJ starts to get relative time
+            self.t0 = None 
             rospy.loginfo("TRAJ state detected - recording starts now.")
-        # Optional: Stop recording if state changes away from TRAJ?
-        # elif msg.data != "TRAJ" and self.rec:
-        #    rospy.loginfo("Exited TRAJ state, stopping recording.")
-        #    self.shutdown() # Trigger plotting
 
     def cb_odom(self,msg):
         if not self.rec or self.done: return
         if self.t0 is None:
-            self.t0 = msg.header.stamp # Record time of first odom message in TRAJ state
+            self.t0 = msg.header.stamp 
 
         t_sec = (msg.header.stamp - self.t0).to_sec()
         self.data['t'].append(t_sec)
@@ -168,8 +164,7 @@ class Plotter(object):
         self.data['vy'].append(vw[1])
         self.data['vz'].append(vw[2])
 
-        # Stop recording after specified duration or if trajectory should be finished
-        # Add a small buffer to total_traj_time check
+
         if t_sec >= self.run_T or (self.total_traj_time != float('inf') and t_sec > self.total_traj_time + 2.0):
             rospy.loginfo("Stopping recording. Duration limit reached or trajectory time exceeded.")
             self.shutdown()

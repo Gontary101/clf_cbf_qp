@@ -291,12 +291,8 @@ class ClfIrisController(object):
         # Safeguard for potentially zero initial odometry from Gazebo
         if abs(p3.x) < EPS and abs(p3.y) < EPS and abs(p3.z) < EPS and norm([q.x,q.y,q.z,q.w]-np.array([0,0,0,1])) < EPS and self.state == State.TAKEOFF :
              rospy.loginfo_throttle(1.0, "Waiting for non-zero initial pose/orientation from odometry...")
-             # Publish zero commands while waiting? Optional.
-             # stop_msg = Actuators()
-             # stop_msg.header.stamp = now
-             # stop_msg.angular_velocities = [0.0] * 4
-             # self.cmd_pub.publish(stop_msg)
-             return # Skip control loop until state is valid
+
+             return
 
         x, y, z = p3.x, p3.y, p3.z
         try:

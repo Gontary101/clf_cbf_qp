@@ -29,8 +29,5 @@
       wait_to_record_bag="$(arg wait_to_record_bag)" />
   </xacro:if>
 
-
-  <!-- === END OF ADDED PLUGINS === -->
-  <!-- =================================================================== -->
   <xacro:include filename="/root/danger_ws/src/fly_bot/urdf/iris_addons.gazebo" />
 </robot>
