@@ -1,0 +1,36 @@
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: "rviz/Grid"
+      Name: "Grid"
+      Enabled: true
+      Plane: "XY"
+      Cell Size: 1
+      Normal Cell Count: 10
+
+    - Class: "rviz/TF"
+      Name: "TF"
+      Enabled: true
+
+    - Class: "rviz/RobotModel"
+      Name: "Drone Model"
+      Enabled: true
+      Robot Description: "robot_description"
+
+    - Class: "rviz/Marker"
+      Name: "Actual Traj"
+      Enabled: true
+      Marker Topic: "/actual_traj_marker"
+
+    - Class: "rviz/Marker"
+      Name: "Desired Traj"
+      Enabled: true
+      Marker Topic: "/desired_traj_marker"
+
+    - Class: "rviz/MarkerArray"
+      Name: "Obstacles"
+      Enabled: true
+      Marker Topic: "/obstacle_markers"
+
+  Global Options:
+    Fixed Frame: "world"

@@ -1,0 +1,112 @@
+<launch>
+  <arg name="namespace"                   default="iris"/>
+  <arg name="world_name"                  default="basic"/>
+  <arg name="paused"                      default="false"/>
+  <arg name="gui"                         default="true"/>
+  <arg name="debug"                       default="false"/>
+  <arg name="verbose"                     default="false"/>
+  <arg name="use_model_states_for_control" default="true"/>
+
+  <!-- spawn the Iris in Gazebo -->
+  <include file="$(find fly_bot)/launch/spawn_rotors_iris.launch">
+    <arg name="namespace"    value="$(arg namespace)"/>
+    <arg name="world_name"   value="$(arg world_name)"/>
+    <arg name="paused"       value="$(arg paused)"/>
+    <arg name="gui"          value="$(arg gui)"/>
+    <arg name="debug"        value="$(arg debug)"/>
+    <arg name="verbose"      value="$(arg verbose)"/>
+    <arg name="x"            value="20.0"/>
+    <arg name="y"            value="0.0"/>
+    <arg name="z"            value="0.1"/>
+    <arg name="yaw"          value="0.0"/>
+  </include>
+
+  <!-- trajectory plotter (point at new controller topics) -->
+  <node name="trajectory_plotter_node"
+        pkg="fly_bot"
+        type="helix_plotter.py"
+        output="screen">
+    <param name="odom_topic"     value="/$(arg namespace)/ground_truth/odometry"/>
+    <param name="omega_sq_topic" value="/clf_afp_iris_controller/control/omega_sq"/>
+    <param name="thrust_topic"   value="/clf_afp_iris_controller/control/U"/>
+    <param name="state_topic"    value="/clf_afp_iris_controller/control/state"/>
+
+    <param name="helix_start_diameter" value="40.0"/>
+    <param name="helix_end_diameter"   value="15.0"/>
+    <param name="helix_height"         value="30.0"/>
+    <param name="helix_laps"           value="4.0"/>
+    <param name="trajectory_omega"     value="0.07"/>
+    <param name="plot_save_dir"        value="$(find fly_bot)/plots"/>
+    <param name="min_omega"            value="0.0"/>
+    <param name="max_omega"            value="838.0"/>
+    <param name="static_obstacles"
+           value="[[-8.96,-15.52,8.00,1.00],[-7.92,13.71,13.00,1.00],[13.75,0.00,18.00,1.00],[-5.83,-10.10,23.00,1.00],[-4.79,8.30,28.00,1.00]]"/>
+  </node>
+
+  <!-- new CLF+APF controller -->
+  <node name="clf_afp_iris_controller"
+        pkg="fly_bot"
+        type="clf_apf.py"
+        output="screen">
+
+    <!-- obstacles: [x,y,z,radius] or [x,y,z,radius,vx,vy,vz] -->
+    <param name="static_obstacles"
+           value="[[-8.96,-15.52,8.00,1.00],[-7.92,13.71,13.00,1.00],[13.75,0.00,18.00,1.00],[-5.83,-10.10,23.00,1.00],[-4.79,8.30,28.00,1.00]]"/>
+
+    <!-- namespace & odom source -->
+    <param name="namespace"            value="$(arg namespace)"/>
+    <param name="use_model_states"     value="$(arg use_model_states_for_control)"/>
+
+    <!-- drone physical properties -->
+    <param name="mass"                 value="1.5"/>
+    <param name="gravity"              value="9.81"/>
+    <param name="I_x"                  value="0.0348"/>
+    <param name="I_y"                  value="0.0459"/>
+    <param name="I_z"                  value="0.0977"/>
+    <param name="motor_constant"       value="8.54858e-06"/>
+    <param name="moment_constant"      value="1.3677728e-07"/>
+    <param name="max_rot_velocity"     value="838.0"/>
+    <param name="min_thrust_factor"    value="0.1"/>
+    <param name="gravity_comp_factor"  value="1.022"/>
+    <param name="max_tilt_angle_deg"   value="30.0"/>
+    <param name="drone_radius"         value="0.5"/>
+
+    <!-- helix trajectory parameters -->
+    <param name="helix_start_diameter" value="40.0"/>
+    <param name="helix_end_diameter"   value="15.0"/>
+    <param name="helix_height"         value="30.0"/>
+    <param name="helix_laps"           value="4.0"/>
+    <param name="trajectory_omega"     value="0.07"/>
+    <param name="fixed_yaw_deg"        value="0.0"/>
+
+    <!-- takeoff/hover parameters -->
+    <param name="takeoff_x"            value="20.0"/>
+    <param name="takeoff_y"            value="0.0"/>
+    <param name="takeoff_height"       value="3.0"/>
+    <param name="hover_pos_threshold"  value="0.15"/>
+    <param name="hover_vel_threshold"  value="0.1"/>
+    <param name="hover_stabilization_secs" value="2.0"/>
+
+    <!-- controller gains -->
+    <param name="k_takepos1"           value="0.22"/>
+    <param name="k_takepos2"           value="0.8"/>
+    <param name="k_takeatt1"           value="2.05"/>
+    <param name="k_takeatt2"           value="4.1"/>
+    <param name="k_trajpos1"           value="0.9"/>
+    <param name="k_trajpos2"           value="5.5"/>
+    <param name="k_trajatt1"           value="16.0"/>
+    <param name="k_trajatt2"           value="32.0"/>
+
+    <!-- APF parameters -->
+    <param name="apf_eta"              value="0.7"/>
+    <param name="apf_d0"               value="3.0"/>
+    <param name="apf_rep_gain"         value="0.2"/>
+    <param name="apf_rot_coef"         value="8.5"/>
+    <param name="apf_margin"           value="0.4"/>
+    <param name="apf_debug"            value="true"/>
+
+    <!-- control loop rate -->
+    <param name="control_rate"         value="100.0"/>
+
+  </node>
+</launch>

@@ -1,0 +1,58 @@
+<launch>
+    <arg name="namespace" default="iris"/>
+    <arg name="world_name" default="basic"/>
+    <arg name="paused" default="false"/>
+    <arg name="gui" default="true"/>
+    <arg name="debug" default="false"/>
+    <arg name="verbose" default="false"/>
+    <arg name="use_model_states_for_control" default="false"/>
+
+    <include file="$(find fly_bot)/launch/spawn_rotors_iris.launch">
+        <arg name="namespace" value="$(arg namespace)"/>
+        <arg name="world_name" value="$(arg world_name)"/>
+        <arg name="paused" value="$(arg paused)"/>
+        <arg name="gui" value="$(arg gui)"/>
+        <arg name="debug" value="$(arg debug)"/>
+        <arg name="verbose" value="$(arg verbose)"/>
+    </include>
+
+    <node name="clf_iris_position_controller" pkg="fly_bot" type="clf_position_iris.py" output="screen">
+        <param name="namespace" value="$(arg namespace)" />
+        <param name="use_model_states" value="$(arg use_model_states_for_control)" />
+        <param name="mass" value="1.5" />
+        <param name="I_x" value="0.0347563" />
+        <param name="I_y" value="0.0458929" />
+        <param name="I_z" value="0.0977" />
+        <param name="target_x" value="5.0" />
+        <param name="target_y" value="-10.6" />
+        <param name="target_z" value="3.0" />
+        <param name="target_yaw_deg" value="45.0" />
+        <param name="k_pos1" value="0.22" />
+        <param name="k_pos2" value="0.63" />
+        <param name="k_att1" value="2.05" />
+        <param name="k_att2" value="4.1" />
+        <param name="gravity_comp_factor" value="1.022" />
+        <param name="max_tilt_angle_deg" value="30.0" />
+        <param name="control_rate" value="100.0"/>
+    </node>
+
+    <node name="convergence_plotter_iris" pkg="fly_bot" type="convergence_plotter.py" output="screen">
+        <param name="topic" value="/$(arg namespace)/ground_truth/pose" /> <!-- Using ground_truth/pose -->
+
+        <param name="target_x" value="5.0" />
+        <param name="target_y" value="-10.6" />
+        <param name="target_z" value="3.0" />
+
+        <param name="plot_save_dir" value="$(find fly_bot)/plots" />
+
+        <param name="settling_threshold_percent" value="2.0" />
+        <param name="thrust_topic" value="/clf_iris_position_controller/control/U" />
+        <param name="min_thrust" value="0.0" />
+        <param name="max_thrust" value="18.0" />
+
+        <param name="omega_sq_topic" value="/control/omega_sq" />
+        <param name="min_omega" value="0.0"/>
+        <param name="max_omega" value="838.0"/> 
+    </node>
+
+</launch>

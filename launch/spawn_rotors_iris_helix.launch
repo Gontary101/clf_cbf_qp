@@ -1,0 +1,72 @@
+<launch>
+  <!-- Top‑level arguments -->
+  <arg name="mav_name"       default="iris" doc="Model name (matches parts of xacro files)"/>
+  <arg name="namespace"      default="iris" doc="Namespace for the robot model and topics"/>
+  <arg name="world_name"     default="basic" doc="Name of the world to load (e.g., basic, empty)"/>
+  <arg name="log_file"       default="$(arg mav_name)" doc="Log file name prefix"/>
+
+  <arg name="paused"         default="false" doc="Start Gazebo paused"/>
+  <arg name="gui"            default="true"  doc="Start Gazebo GUI"/>
+  <arg name="debug"          default="false"/>
+  <arg name="verbose"        default="false"/>
+
+  <!-- RotorS/iris‑specific arguments -->
+  <arg name="enable_logging"                default="false"/>
+  <arg name="use_model_states_for_control"  default="false"
+       doc="if true, controller subscribes to /gazebo/model_states instead of odom"/>
+  <arg name="enable_ground_truth"          default="false"
+       doc="if true, include Gazebo ground_truth_imu_and_odometry plugin (TF)"/>
+  <arg name="enable_mavlink_interface"     default="false"/>
+  <arg name="wait_to_record_bag"           default="false"/>
+
+  <!-- Initial pose -->
+  <arg name="x"     default="0.0" doc="Initial X position"/>
+  <arg name="y"     default="0.0" doc="Initial Y position"/>
+  <arg name="z"     default="0.1" doc="Initial Z position"/>
+  <arg name="yaw"   default="0.0" doc="Initial yaw (radians)"/>
+
+  <!-- Launch Gazebo with your helix.world -->
+  <include file="$(find gazebo_ros)/launch/empty_world.launch">
+    <arg name="world_name" value="$(find fly_bot)/worlds/helix.world"/>
+    <arg name="paused"     value="$(arg paused)"/>
+    <arg name="gui"        value="$(arg gui)"/>
+    <arg name="debug"      value="$(arg debug)"/>
+    <arg name="verbose"    value="$(arg verbose)"/>
+  </include>
+
+  <!-- Load URDF/Xacro into /robot_description -->
+  <param name="robot_description"
+         command="$(find xacro)/xacro '$(find fly_bot)/urdf/my_iris.xacro'
+           mav_name:=$(arg mav_name)
+           namespace:=$(arg namespace)
+           enable_logging:=$(arg enable_logging)
+           use_model_states_for_control:=$(arg use_model_states_for_control)
+           enable_ground_truth:=$(arg enable_ground_truth)
+           enable_mavlink_interface:=$(arg enable_mavlink_interface)
+           log_file:=$(arg log_file)
+           wait_to_record_bag:=$(arg wait_to_record_bag)
+           gazebo_snippets_file:='$(find fly_bot)/urdf/iris_addons.gazebo'
+           --inorder" />
+ <!-- Publish all the URDF’s link frames as TF -->
+  <node pkg="robot_state_publisher"
+        type="robot_state_publisher"
+        name="robot_state_publisher"
+        output="screen">
+  </node>
+  <!-- Spawn the robot into Gazebo -->
+  <node name="spawn_$(arg namespace)"
+        pkg="gazebo_ros"
+        type="spawn_model"
+        args="-urdf -param robot_description -model $(arg namespace)
+              -x $(arg x) -y $(arg y) -z $(arg z)
+              -R 0 -P 0 -Y $(arg yaw)"
+        respawn="false"
+        output="screen" />
+
+  <!-- Optionally unpause physics if we started paused -->
+  <node name="unpause_gazebo"
+        pkg="rosservice"
+        type="rosservice"
+        args="call /gazebo/unpause_physics"
+        if="$(arg paused)" />
+</launch>

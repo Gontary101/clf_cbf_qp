@@ -1,0 +1,85 @@
+<launch>
+    <!-- Arguments for configuration -->
+    <arg name="namespace" default="iris"/>
+    <arg name="world_name" default="basic"/>
+    <arg name="paused" default="false"/>
+    <arg name="gui" default="true"/>
+    <arg name="debug" default="false"/>
+    <arg name="verbose" default="false"/>
+    <arg name="use_model_states_for_control" default="false"/> <!-- Set true to use /gazebo/model_states, false for /iris/ground_truth/odometry -->
+
+    <!-- Include Gazebo simulation environment and spawn the Iris drone -->
+    <include file="$(find fly_bot)/launch/spawn_rotors_iris.launch">
+        <arg name="namespace" value="$(arg namespace)"/>
+        <arg name="world_name" value="$(arg world_name)"/>
+        <arg name="paused" value="$(arg paused)"/>
+        <arg name="gui" value="$(arg gui)"/>
+        <arg name="debug" value="$(arg debug)"/>
+        <arg name="verbose" value="$(arg verbose)"/>
+    </include>
+
+    <!-- ******************************************************* -->
+    <!-- ** UPDATED: Sequential A -> B Position Controller Node ** -->
+    <!-- ******************************************************* -->
+    <node name="clf_iris_sequential_controller" pkg="fly_bot" type="clf_position_A_B_iris.py" output="screen">
+        <!-- Common Parameters -->
+        <param name="namespace" value="$(arg namespace)" />
+        <param name="use_model_states" value="$(arg use_model_states_for_control)" />
+        <param name="mass" value="1.5" />
+        <param name="I_x" value="0.0347563" />
+        <param name="I_y" value="0.0458929" />
+        <param name="I_z" value="0.0977" />
+        <param name="target_yaw_deg" value="45.0" /> <!-- Shared Yaw for both points -->
+        <param name="k_pos1" value="0.14" />          <!-- Position error gain -->
+        <param name="k_pos2" value="0.12" />          <!-- Velocity error gain -->
+        <param name="k_att1" value="1.0" />           <!-- Attitude error gain -->
+        <param name="k_att2" value="2.0" />           <!-- Attitude rate error gain -->
+        <param name="gravity_comp_factor" value="1.022" /> <!-- Gravity compensation adjustment -->
+        <param name="max_tilt_angle_deg" value="30.0" />  <!-- Max allowed tilt -->
+        <param name="control_rate" value="100.0"/>        <!-- Controller update rate (Hz) -->
+
+        <!-- === Sequential Control Parameters === -->
+        <!-- Target A Coordinates (Initial Destination) -->
+        <param name="target_A_x" value="5.0" />
+        <param name="target_A_y" value="-30.6" />
+        <param name="target_A_z" value="3.0" />
+
+        <!-- Target B Coordinates (Final Destination) -->
+        <param name="target_B_x" value="0.0" />   <!-- Example: Go back near origin x -->
+        <param name="target_B_y" value="0.0" />   <!-- Example: Go back near origin y -->
+        <param name="target_B_z" value="1.5" />   <!-- Example: Hover lower at B -->
+
+        <!-- Waypoint Switching Threshold (Absolute error on EACH axis) -->
+        <!-- Drone switches to B when |ex| < threshold AND |ey| < threshold AND |ez| < threshold -->
+        <param name="waypoint_switch_threshold" value="0.2"/> <!-- meters (e.g., switch when within 20cm of A on all axes) -->
+    </node>
+    <!-- ******************************************************* -->
+    <!-- ** End of Controller Node Section **                    -->
+    <!-- ******************************************************* -->
+
+
+    <!-- ******************************************************* -->
+    <!-- ** Convergence Plotter Node (Targets B)              ** -->
+    <!-- ******************************************************* -->
+    <node name="convergence_plotter_iris" pkg="fly_bot" type="convergence_plotter.py" output="screen">
+        <!-- Parameter: Topic to subscribe to for position data -->
+        <!-- Assuming plotter uses Pose data as per original file -->
+        <param name="topic" value="/$(arg namespace)/ground_truth/pose" />
+
+        <!-- Parameters: Target position -->
+        <!-- *** IMPORTANT: Set plotter target to FINAL destination (Target B) *** -->
+        <param name="target_x" value="0.0" />   <!-- Must match target_B_x above -->
+        <param name="target_y" value="0.0" />   <!-- Must match target_B_y above -->
+        <param name="target_z" value="1.5" />   <!-- Must match target_B_z above -->
+
+        <!-- Parameter: Directory to save plots -->
+        <param name="plot_save_dir" value="$(find fly_bot)/plots" />
+
+        <!-- Parameter: Settling time threshold percentage -->
+        <param name="settling_threshold_percent" value="2.0" />
+    </node>
+    <!-- ******************************************************* -->
+    <!-- ** End of Plotter Section **                            -->
+    <!-- ******************************************************* -->
+
+</launch>

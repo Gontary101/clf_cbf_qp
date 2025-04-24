@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+
+  <!-- Include the plugin macros -->
+  <xacro:include filename="$(find rotors_description)/urdf/component_snippets.xacro" />
+
+  <!-- Wind Plugin -->
+  <!-- 
+       Using the wind_plugin_macro with the following parameters:
+       - namespace:          The robot namespace.
+       - xyz_offset:         Offset of wind force application relative to link origin.
+       - wind_direction:     Mean direction of the wind [x y z].
+       - wind_force_mean:    Mean force of the steady wind [N] (set to 0 if using primarily speed).
+       - wind_speed_mean:    Mean speed of the wind [m/s].
+       - wind_gust_direction:Mean direction of the wind gust [x y z].
+       - wind_gust_duration: Duration of the gust [s].
+       - wind_gust_start:    Start time of the gust [s].
+       - wind_gust_force_mean: Mean force of the gust [N] (the macro uses force for gusts).
+       - use_custom_static_wind_field: Whether to use a custom wind field file (true/false).
+       - custom_wind_field_path: Path to the custom wind field file (relative to ~/.ros).
+  -->
+  <xacro:wind_plugin_macro
+    namespace="${namespace}"
+    xyz_offset="0 0 0"
+    wind_direction="0 0 1"
+    wind_force_mean="0.0"
+    wind_speed_mean="0.0"
+    wind_gust_direction="0 0 1"
+    wind_gust_duration="3.0"
+    wind_gust_start="15.0"
+    wind_gust_force_mean="0.0"
+    use_custom_static_wind_field="false"
+    custom_wind_field_path=""
+  />
+
+</robot>
+
