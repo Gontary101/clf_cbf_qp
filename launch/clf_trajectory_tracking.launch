@@ -4,7 +4,7 @@
   <arg name="debug" default="false"/><arg name="verbose" default="false"/>
   <arg name="use_model_states_for_control" default="true"/>
 
-  <include file="$(find fly_bot)/launch/spawn_rotors_iris.launch">
+  <include file="$(find clf_cbf_qp)/launch/spawn_rotors_iris.launch">
     <arg name="namespace" value="$(arg namespace)"/>
     <arg name="world_name" value="$(arg world_name)"/>
     <arg name="paused" value="$(arg paused)"/>
@@ -15,7 +15,7 @@
     <arg name="z" value="0.1"/><arg name="yaw" value="0.0"/>
   </include>
 
-  <node name="clf_iris_trajectory_controller" pkg="fly_bot" type="clf_trajectory_tracking.py" output="screen">
+  <node name="clf_iris_trajectory_controller" pkg="clf_cbf_qp" type="clf_trajectory_tracking.py" output="screen">
     <param name="namespace" value="$(arg namespace)"/><param name="use_model_states" value="$(arg use_model_states_for_control)"/>
     <param name="control_rate" value="100.0"/>
 
@@ -45,7 +45,7 @@
     <param name="min_thrust_factor" value="0.05"/>
   </node>
 
-  <node name="trajectory_plotter_node" pkg="fly_bot" type="trajectory_plotter.py" output="screen">
+  <node name="trajectory_plotter_node" pkg="clf_cbf_qp" type="trajectory_plotter.py" output="screen">
     <param name="odom_topic" value="/$(arg namespace)/ground_truth/odometry"/>
     <param name="omega_sq_topic" value="/clf_iris_trajectory_controller/control/omega_sq"/>
     <param name="thrust_topic" value="/clf_iris_trajectory_controller/control/U"/>
@@ -53,7 +53,7 @@
 
     <param name="ellipse_a" value="31.0"/><param name="ellipse_b" value="21.0"/>
     <param name="trajectory_z" value="2.0"/><param name="trajectory_omega" value="0.05"/>
-    <param name="plot_save_dir" value="$(find fly_bot)/plots"/>
+    <param name="plot_save_dir" value="$(find clf_cbf_qp)/plots"/>
     <param name="min_omega" value="0.0"/><param name="max_omega" value="838.0"/>
   </node>
 </launch>

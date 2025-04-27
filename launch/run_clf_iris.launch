@@ -11,7 +11,7 @@
     <arg name="use_model_states_for_control" default="false"/>
 
     <!-- Launch Gazebo with the Iris model -->
-    <include file="$(find fly_bot)/launch/spawn_rotors_iris.launch">
+    <include file="$(find clf_cbf_qp)/launch/spawn_rotors_iris.launch">
         <arg name="namespace" value="$(arg namespace)"/>
         <arg name="world_name" value="$(arg world_name)"/>
         <arg name="paused" value="$(arg paused)"/>
@@ -21,7 +21,7 @@
     </include>
 
     <!-- Launch the CLF Controller Node -->
-    <node name="clf_controller" pkg="fly_bot" type="clf_controller_node.py" output="screen">
+    <node name="clf_controller" pkg="clf_cbf_qp" type="clf_controller_node.py" output="screen">
         <!-- Pass namespace and params -->
         <param name="namespace" value="$(arg namespace)" />
         <param name="use_model_states" value="$(arg use_model_states_for_control)" />

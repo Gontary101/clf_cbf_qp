@@ -95,12 +95,12 @@
       <link name='link'>
         <collision name='collision'>
           <geometry>
-            <sphere><radius>1.00</radius></sphere>
+            <sphere><radius>0.50</radius></sphere>
           </geometry>
         </collision>
         <visual name='visual'>
           <geometry>
-            <sphere><radius>1.00</radius></sphere>
+            <sphere><radius>0.50</radius></sphere>
           </geometry>
           <material>
             <script>

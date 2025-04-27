@@ -5,7 +5,7 @@
   <arg name="gui"                       default="true"/>
   <arg name="debug"                     default="false"/>
   <arg name="verbose"                   default="false"/>
-  <arg name="use_model_states_for_control" default="true"/>
+  <!-- Removed unused arg: use_model_states_for_control -->
 
   <include file="$(find clf_cbf_qp)/launch/spawn_rotors_iris.launch">
     <arg name="namespace" value="$(arg namespace)"/>
@@ -14,7 +14,7 @@
     <arg name="gui"        value="$(arg gui)"/>
     <arg name="debug"      value="$(arg debug)"/>
     <arg name="verbose"    value="$(arg verbose)"/>
-    <arg name="x"          value="20.0"/>
+    <arg name="x"          value="20.0"/> <!-- Initial X position matches takeoff_x -->
     <arg name="y"          value="0.0"/>
     <arg name="z"          value="0.1"/>
     <arg name="yaw"        value="0.0"/>
@@ -25,33 +25,34 @@
         pkg="clf_cbf_qp"
         type="helix_plotter.py"
         output="screen">
+    <!-- Topics remain the same as node name is unchanged -->
     <param name="odom_topic"                value="/$(arg namespace)/ground_truth/odometry"/>
     <param name="omega_sq_topic"            value="/clf_iris_trajectory_controller/control/omega_sq"/>
     <param name="thrust_topic"              value="/clf_iris_trajectory_controller/control/U"/>
     <param name="state_topic"               value="/clf_iris_trajectory_controller/control/state"/>
 
+    <!-- Trajectory parameters for plotting reference -->
     <param name="helix_start_diameter"      value="40.0"/>
     <param name="helix_end_diameter"        value="15.0"/>
     <param name="helix_height"              value="30.0"/>
     <param name="helix_laps"                value="4.0"/>
-    <param name="trajectory_omega"          value="0.07"/>
+    <param name="trajectory_omega"          value="0.07"/> <!-- Match controller param -->
     <param name="plot_save_dir"             value="$(find clf_cbf_qp)/plots"/>
     <param name="min_omega"                 value="0.0"/>
-    <param name="max_omega"                 value="838.0"/>
+    <param name="max_omega"                 value="838.0"/> <!-- Match controller param -->
+    <!-- Obstacles for plotting -->
     <param name="static_obstacles"
            value="[ [-8.96, -15.52, 8.00, 1.00], [-7.92, 13.71, 13.00, 1.00], [13.75, 0.00, 18.00, 1.00], [-5.83, -10.10, 23.00, 1.00], [-4.79, 8.30, 28.00, 1.00] ]" />
   </node>
-<node pkg="clf_cbf_qp" type="helix_clf_c3bf.py"
-        name="clf_iris_trajectory_controller" output="screen">
 
-    <!-- Provided Parameters -->
-    <param name="static_obstacles"
-           value="[ [-8.96, -15.52, 8.00, 1.00], [-7.92, 13.71, 13.00, 1.00], [13.75, 0.00, 18.00, 1.00], [-5.83, -10.10, 23.00, 1.00], [-4.79, 8.30, 28.00, 1.00] ]" />
-    
+  <!-- Launch the new Full Dynamics ZCBF Controller Node -->
+  <node pkg="clf_cbf_qp" type="clf_ecbf_qp_full_dynamics.py"
+        name="clf_iris_trajectory_controller" output="screen"> <!-- Keep name consistent -->
 
-    <!-- Added Parameters (with defaults from script if not specified) -->
-    <param name="namespace" value="iris" />
-    <param name="use_model_states" value="true" /> <!-- Or true if using Gazebo ModelStates -->
+    <!-- General Parameters -->
+    <param name="namespace" value="$(arg namespace)" />
+    <param name="use_model_states" value="true" /> <!-- Set true if using Gazebo ModelStates, false for /ground_truth/odometry -->
+    <param name="control_rate" value="100.0" />
 
     <!-- Drone Physical Properties -->
     <param name="mass" value="1.5" />
@@ -65,6 +66,7 @@
     <param name="min_thrust_factor" value="0.1" />
     <param name="gravity_comp_factor" value="1.022" />
     <param name="max_tilt_angle_deg" value="30.0" />
+    <param name="drone_radius" value="0.5" /> <!-- Used for padding obstacles -->
 
     <!-- Helix Trajectory Parameters -->
     <param name="helix_start_diameter" value="40.0" />
@@ -75,32 +77,40 @@
     <param name="fixed_yaw_deg" value="0.0" />
 
     <!-- Takeoff/Hover Parameters -->
-    <!-- Default takeoff_x is 0.5 * helix_start_diameter = 20.0 -->
-    <param name="takeoff_x" value="20.0" />
-    <param name="takeoff_y" value="0.0" />
+    <param name="takeoff_x" value="20.0" /> <!-- Should match spawn x -->
+    <param name="takeoff_y" value="0.0" />  <!-- Should match spawn y -->
     <param name="takeoff_height" value="3.0" />
     <param name="hover_pos_threshold" value="0.15" />
     <param name="hover_vel_threshold" value="0.1" />
     <param name="hover_stabilization_secs" value="2.0" />
 
-    <!-- Controller Gains -->
+    <!-- Controller Gains (CLF Backstepping part - unchanged) -->
     <!-- Takeoff Gains -->
     <param name="k_takepos1" value="0.22" />
     <param name="k_takepos2" value="0.8" />
     <param name="k_takeatt1" value="2.05" />
     <param name="k_takeatt2" value="4.1" />
     <!-- Trajectory Gains -->
-    <param name="k_trajpos1" value="0.8" />
+    <param name="k_trajpos1" value="1.5" />
     <param name="k_trajpos2" value="5.5" />
     <param name="k_trajatt1" value="16.0" />
     <param name="k_trajatt2" value="32.0" />
 
-    <!-- CBF Parameters -->
-    <param name="cbf_gamma" value="50.0"/>
-    <param name="drone_radius" value="0.5" />
+    <!-- Obstacle Definitions -->
+    <param name="static_obstacles"
+           value="[ [-8.96, -15.52, 8.00, 1.00], [-7.92, 13.71, 13.00, 1.00], [13.75, 0.00, 18.00, 1.00], [-5.83, -10.10, 23.00, 1.00], [-4.79, 8.30, 28.00, 1.00] ]" />
 
-    <!-- Control Loop Rate -->
-    <param name="control_rate" value="100.0" />
+    <!-- NEW Zeroing CBF (ZCBF) Parameters -->
+    <param name="zcbf_beta"   value="1.2" />    <!-- Base inflation factor (>= 1) -->
+    <param name="zcbf_a1"     value="0.6" />    <!-- Max extra margin amplitude -->
+    <param name="zcbf_a2"     value="1.0" />    <!-- Slope of sigma function (e.g., 1/r_safe) -->
+    <param name="zcbf_gamma"  value="1.0" />    <!-- ECBF-like damping term -->
+    <param name="zcbf_kappa"  value="2.0" />   <!-- Robustness gain -->
+    <param name="zcbf_order_a" value="1" />     <!-- CBF order exponent term (0 or 1) -->
+
+    <!-- REMOVED Old ECBF Parameters -->
+    <!-- <param name="cbf_k0" value="4.0" /> -->
+    <!-- <param name="cbf_k1" value="16.0" /> -->
 
   </node>
 </launch>
