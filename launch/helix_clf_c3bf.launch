@@ -39,14 +39,14 @@
     <param name="min_omega"                 value="0.0"/>
     <param name="max_omega"                 value="838.0"/>
     <param name="static_obstacles"
-           value="[ [-8.96, -15.52, 8.00, 1.00], [-7.92, 13.71, 13.00, 1.00], [13.75, 0.00, 18.00, 1.00], [-5.83, -10.10, 23.00, 1.00], [-4.79, 8.30, 28.00, 1.00] ]" />
+           value="[ [-8.96, -15.52, 8.00, 1.00], [-7.92, 13.71, 13.00, 1.00], [13.75, 0.00, 18.00, 1.00], [-5.83, -10.10, 23.00, 1.00], [-4.79, 8.30, 28.00, 1.00],  [-0.026 ,19.60 ,4.875, 1.00], [-4.8, 17.093 ,5.248, 1.00] ]" />
   </node>
-<node pkg="clf_cbf_qp" type="helix_clf_c3bf.py"
+<node pkg="clf_cbf_qp" type="c3bf_full.py"
         name="clf_iris_trajectory_controller" output="screen">
 
     <!-- Provided Parameters -->
     <param name="static_obstacles"
-           value="[ [-8.96, -15.52, 8.00, 1.00], [-7.92, 13.71, 13.00, 1.00], [13.75, 0.00, 18.00, 1.00], [-5.83, -10.10, 23.00, 1.00], [-4.79, 8.30, 28.00, 1.00] ]" />
+           value="[ [-8.96, -15.52, 8.00, 1.00], [-7.92, 13.71, 13.00, 1.00], [13.75, 0.00, 18.00, 1.00], [-5.83, -10.10, 23.00, 1.00], [-4.79, 8.30, 28.00, 1.00],  [-0.026 ,19.60 ,4.875, 1.00], [-4.8, 17.093 ,5.248, 1.00] ]" />
     
 
     <!-- Added Parameters (with defaults from script if not specified) -->
@@ -90,7 +90,7 @@
     <param name="k_takeatt1" value="2.05" />
     <param name="k_takeatt2" value="4.1" />
     <!-- Trajectory Gains -->
-    <param name="k_trajpos1" value="0.8" />
+    <param name="k_trajpos1" value="1.5" />
     <param name="k_trajpos2" value="5.5" />
     <param name="k_trajatt1" value="16.0" />
     <param name="k_trajatt2" value="32.0" />

@@ -136,6 +136,51 @@
         </visual>
       </link>
     </model>
+   <model name='sphere_obstacle_5'>
+  <static>true</static>
+  <pose>-0.026 19.60 4.875 0 0 0</pose>
+  <link name='link'>
+    <collision name='collision'>
+      <geometry>
+        <sphere><radius>1.00</radius></sphere>
+      </geometry>
+    </collision>
+    <visual name='visual'>
+      <geometry>
+        <sphere><radius>1.00</radius></sphere>
+      </geometry>
+      <material>
+        <script>
+          <uri>file://media/materials/scripts/gazebo.material</uri>
+          <name>Gazebo/Green</name>
+        </script>
+      </material>
+    </visual>
+  </link>
+</model>
+
+<model name='sphere_obstacle_6'>
+  <static>true</static>
+  <pose>-4.8 17.093 5.248 0 0 0</pose>
+  <link name='link'>
+    <collision name='collision'>
+      <geometry>
+        <sphere><radius>1.00</radius></sphere>
+      </geometry>
+    </collision>
+    <visual name='visual'>
+      <geometry>
+        <sphere><radius>1.00</radius></sphere>
+      </geometry>
+      <material>
+        <script>
+          <uri>file://media/materials/scripts/gazebo.material</uri>
+          <name>Gazebo/White</name>
+        </script>
+      </material>
+    </visual>
+  </link>
+</model>
 
 
  </world>
