@@ -13,13 +13,11 @@ import ast
 
 solvers.options['show_progress'] = False
 
-# Helper functions
 clip = np.clip
 sign = np.sign
 rt   = np.sqrt
 def pget(n,d): return rospy.get_param("~"+n,d)
 
-# Constants
 e3_world = np.array([0.0, 0.0, 1.0])
 e3_body  = np.array([0.0, 0.0, 1.0])
 
@@ -36,22 +34,20 @@ class ClfIrisController(object):
         self.xy_offset= None
         self.z_offset = None
 
-        # --- Quadrotor Parameters ---
         self.m        = pget("mass",1.5)
         self.g        = pget("gravity",9.81)
         self.Ix       = pget("I_x",0.0348)
         self.Iy       = pget("I_y",0.0459)
         self.Iz       = pget("I_z",0.0977)
-        self.J_inv_diag = np.diag([1.0/self.Ix, 1.0/self.Iy, 1.0/self.Iz]) # Precompute inverse inertia diagonal
+        self.J_inv_diag = np.diag([1.0/self.Ix, 1.0/self.Iy, 1.0/self.Iz])
         self.kf       = pget("motor_constant",8.54858e-06)
         self.km       = pget("moment_constant",1.3677728e-07)
         self.w_max    = pget("max_rot_velocity",838.0)
         self.min_f    = pget("min_thrust_factor",0.1)
         self.gc       = pget("gravity_comp_factor",1.022)
         self.max_tilt = math.radians(pget("max_tilt_angle_deg",30.0))
-        self.r_drone  = pget("drone_radius", 0.5) # Drone radius for padding obstacles
+        self.r_drone  = pget("drone_radius", 0.5)
 
-        # --- Trajectory Parameters ---
         self.d_start    = pget("helix_start_diameter",40.0)
         self.d_end      = pget("helix_end_diameter",15.0)
         self.height     = pget("helix_height",30.0)
@@ -69,31 +65,27 @@ class ClfIrisController(object):
         th = pget("takeoff_height", 3.0)
         self.x_to, self.y_to, self.z_to = tx, ty, th
 
-        # --- CLF Gains ---
         def gains(pref, k1, k2, a1, a2):
             return [pget(pref+k,i) for k,i in
                     zip(("pos1","pos2","att1","att2"),(k1,k2,a1,a2))]
         self.g_take = gains("k_take",0.22,0.8,2.05,4.1)
         self.g_traj = gains("k_traj",0.75,4.1,16.0,32.0)
 
-        # --- Control Allocation Matrix ---
         A = np.array([
             [self.kf]*4,
-            [-0.22*self.kf,  0.20*self.kf,  0.22*self.kf, -0.20*self.kf], # Note: Check signs/values if using different frame/mixer
-            [-0.13*self.kf,  0.13*self.kf, -0.13*self.kf,  0.13*self.kf], # Note: Check signs/values if using different frame/mixer
+            [-0.22*self.kf,  0.20*self.kf,  0.22*self.kf, -0.20*self.kf],
+            [-0.13*self.kf,  0.13*self.kf, -0.13*self.kf,  0.13*self.kf],
             [-self.km,       -self.km,       self.km,       self.km]
         ])
         self.invA = np.linalg.inv(A)
 
-        # --- ZCBF Parameters (New) ---
-        self.beta   = pget("zcbf_beta", 1.5)      # Base inflation factor (>= 1)
-        self.a1     = pget("zcbf_a1", 0.5)        # Max extra margin amplitude
-        self.a2     = pget("zcbf_a2", 1.0)        # Slope of sigma function
-        self.gamma  = pget("zcbf_gamma", 5.0)     # ECBF-like damping term
-        self.kappa  = pget("zcbf_kappa", 18.0)    # Robustness gain (like old k1)
-        self.a      = pget("zcbf_order_a", 0)     # CBF order exponent term (0 or 1)
+        self.beta   = pget("zcbf_beta", 1.5)
+        self.a1     = pget("zcbf_a1", 0.5)
+        self.a2     = pget("zcbf_a2", 1.0)
+        self.gamma  = pget("zcbf_gamma", 5.0)
+        self.kappa  = pget("zcbf_kappa", 18.0)
+        self.a      = pget("zcbf_order_a", 0)
 
-        # --- Obstacle Loading ---
         obstacles_str = pget("static_obstacles", "[[-8.96, -15.52, 8.00, 1.00]]")
         default_obs = [[-8.96, -15.52, 8.00, 1.00]]
         try:
@@ -126,7 +118,6 @@ class ClfIrisController(object):
              rospy.logwarn("Unexpected error processing static_obstacles '%s': %s. Using default.", obstacles_str, e)
              self.obs = np.array(default_obs, dtype=float)
 
-        # --- Publishers ---
         topic = lambda s: '~'+s
         self.cbf_pub = rospy.Publisher(topic("cbf/slack"),
                                        Float64MultiArray,
@@ -141,14 +132,13 @@ class ClfIrisController(object):
             ("error/attitude_deg",Point),("error/rates_deg_s",Vector3),
             ("control/desired_position",Point),
             ("control/desired_velocity",Vector3),
-            ("control/desired_acceleration",Vector3), # Still published, but not used by ZCBF
+            ("control/desired_acceleration",Vector3),
             ("control/desired_attitude_deg",Point),
-            ("control/virtual_inputs",Point), # Still published for analysis
+            ("control/virtual_inputs",Point),
         ]
         self.pubs = {n: rospy.Publisher(topic(n),t,queue_size=1)
                      for n,t in pubs}
 
-        # --- Subscribers ---
         if self.use_gz:
             from gazebo_msgs.msg import ModelStates
             self.sub = rospy.Subscriber('/gazebo/model_states',
@@ -159,7 +149,6 @@ class ClfIrisController(object):
                                         Odometry,self.cb_odom,
                                         queue_size=10)
 
-        # --- State Machine & Control Loop ---
         self.state      = State.TAKEOFF
         self.last       = None
         rate            = pget("control_rate",100.0)
@@ -225,29 +214,23 @@ class ClfIrisController(object):
         if self.last is None: return
         now = rospy.Time.now()
 
-        # --- Extract State ---
         p = self.last.pose.pose.position
-        q_ros = self.last.pose.pose.orientation # Renamed to avoid conflict with ZCBF 'q'
+        q_ros = self.last.pose.pose.orientation 
         v = self.last.twist.twist.linear
         w = self.last.twist.twist.angular
         x,y,z = p.x, p.y, p.z
         phi,th,psi = euler_from_quaternion(
             [q_ros.x,q_ros.y,q_ros.z,q_ros.w])
-        R_mat = self.R(phi,th,psi) # Current rotation matrix
-        # v_w is linear velocity in world frame (from Odometry message directly if frame_id='world')
-        # Assuming ground_truth/odometry provides world frame velocity
+        R_mat = self.R(phi,th,psi)
         v_w = np.array([v.x, v.y, v.z])
-        # w_body is angular velocity in body frame (from Odometry message)
         w_body = np.array([w.x, w.y, w.z])
-        p_vec = np.array([x, y, z]) # Position vector
+        p_vec = np.array([x, y, z])
 
-        # --- State Machine & Reference Generation ---
         if self.state in (State.TAKEOFF,State.HOVER):
             tgt = np.array([self.x_to, self.y_to, self.z_to])
-            vd = ad_nom = np.zeros(3) # ad_nom is nominal acceleration (used by CLF)
+            vd = ad_nom = np.zeros(3)
             yd,rd = self.yaw_fix, 0.0
             g1,g2,g3,g4 = self.g_take
-            #err_xy = math.hypot(x-tgt[0], y-tgt[1])
             err_z  = abs(z-tgt[2])
             err_v = np.linalg.norm(v_w)
 
@@ -285,12 +268,11 @@ class ClfIrisController(object):
             tgt = posd
             g1,g2,g3,g4 = self.g_traj
 
-        else: # LAND or IDLE (just hover in place)
+        else:
             tgt = np.array([x,y,z])
             vd = ad_nom = np.zeros(3)
             yd,rd = psi,0.0
             g1,g2,g3,g4 = self.g_take
-
 
         ex1 = p_vec - tgt
         ex2 = v_w - vd
@@ -298,7 +280,6 @@ class ClfIrisController(object):
         if abs(tof)<self.min_f:
             tof = sign(tof or 1)*self.min_f
 
-        # Nominal Thrust U1_nom
         U1_nom = (self.m/tof)*(-g1*ex1[2]
               +ad_nom[2]-g2*ex2[2]) \
              + self.m*self.g * self.gc/tof
@@ -333,15 +314,12 @@ class ClfIrisController(object):
                              -self.max_tilt,
                              self.max_tilt)
 
-        # Attitude errors
         e_th = np.array([phi-phi_d,
                          th-theta_d,
                          (psi-yd+math.pi)%(2*math.pi)
                          -math.pi])
-        # Angular rate errors
         e_w  = (w_body - np.array([0.0,0.0,rd]))
 
-        # Nominal Torques U2_nom, U3_nom, U4_nom
         U2_nom = (self.Ix*(-g3*e_th[0] - g4*e_w[0])
               - w_body[1]*w_body[2]*(self.Iy-self.Iz))
         U3_nom = (self.Iy*(-g3*e_th[1] - g4*e_w[1])
@@ -349,11 +327,9 @@ class ClfIrisController(object):
         U4_nom = (self.Iz*(-g3*e_th[2] - g4*e_w[2])
               - w_body[0]*w_body[1]*(self.Ix-self.Iy))
 
-        # Nominal control vector
         U_nom = np.array([U1_nom, U2_nom, U3_nom, U4_nom])
-        U = U_nom.copy() # Initialize actual U with nominal U
+        U = U_nom.copy()
 
-        # --- ZCBF Safety Filter (New Implementation) ---
         if self.state == State.TRAJ and self.obs.size > 0:
             G_cbf_list = []
             h_cbf_list = []
@@ -362,98 +338,86 @@ class ClfIrisController(object):
                 xo = np.array([ox, oy, oz])
                 r_safe = r_o + self.r_drone
 
-                # --- compute coefficients ---
-                r      = p_vec - xo              # Relative position [x-xo, y-yo, z-zo]
-                q      = R_mat[:,2]              # Thrust direction vector (third column of R)
-                s      = np.dot(r, q)            # Projection of relative position onto thrust axis
+                r      = p_vec - xo
+                q      = R_mat[:,2]
+                s      = np.dot(r, q)
                 sigma  = -self.a1*np.arctan(self.a2*s)
-                sig_p  = -self.a1*self.a2/(1+(self.a2*s)**2) # sigma'(s)
-
+                sig_p  = -self.a1*self.a2/(1+(self.a2*s)**2)
+                sig_pp  =  2.0 * self.a1 * (self.a2 ** 2) * s / (1.0 + (self.a2 * s) ** 2) ** 2
                 
                 g_hat  = np.dot(r,r) - self.beta*r_safe**2 - sigma
-                term_for_g_hat_d = R_mat.dot(np.cross(w_body, e3_body))
-                # Use the exact term from the snippet for R*(Omega x e3) calculation part
-                g_hat_d= 2*np.dot(r, v_w) - sig_p*( np.dot(v_w,q)
-                          + np.dot(r, term_for_g_hat_d) ) # Use snippet term here
-                h_val  = self.gamma*g_hat + g_hat_d # CBF function value h(x,R,v,Omega)
+                R_Omxe3 = R_mat.dot(np.cross(w_body, e3_body))
+                g_hat_d= 2.0*np.dot(r, v_w) - sig_p*( np.dot(v_w,q)
+                          + np.dot(r, R_Omxe3) )
+                h_val  = self.gamma*g_hat + g_hat_d
 
-                Gamma1 = 2*s - sig_p
-                # Use snippet calculation for Gamma2, ensuring correct matrix multiplication
-                term1_gamma2 = np.dot(R_mat.T, r)
-                term2_gamma2 = np.cross(term1_gamma2, e3_body)
+                Gamma1 = (2.0*s - sig_p)/self.m
+                r_b = np.dot(R_mat.T, r)
+                cross_rb_e3 = np.cross(r_b, e3_body)
                 
-                Gamma2 = sig_p * np.dot(term2_gamma2, self.J_inv_diag)
-                Gamma3 = self.gamma*g_hat_d \
-                         + 2*np.dot(v_w,v_w) \
-                         - sig_p*( np.dot(v_w,q) + np.dot(r, term_for_g_hat_d) ) # Use snippet term here
+                Gamma2_vec = sig_p * np.dot(cross_rb_e3, self.J_inv_diag)
+                dot_s   = np.dot(v_w, q) + np.dot(r, R_Omxe3)
+                Gamma3  = ( self.gamma * g_hat_d
+           + 2.0 * np.dot(v_w, v_w)
+           - sig_p * dot_s
+           - sig_pp * (dot_s ** 2)
+           - 2.0 * self.g * np.dot(r, e3_world)
+           + sig_p * self.g * q[2] )
 
-                # --- assemble inequality row Gamma_u * U <= h_cbf_val ---
-                G_cbf_row  = np.hstack([Gamma1, Gamma2])        # shape (1,4)
-                h_cbf_val  = Gamma3 + self.kappa*h_val**(2*self.a+1)
+                G_cbf_row  = np.hstack([Gamma1, Gamma2_vec])
+                h_cbf_val  = + Gamma3 + self.kappa*(h_val**(2*self.a+1))
 
                 G_cbf_list.append(-G_cbf_row)
                 h_cbf_list.append(h_cbf_val)
                 
             U1_max = 4 * self.kf * self.w_max**2
-            h_box = np.array([U1_max]).reshape(-1,1)
+            h_box = np.array([[U1_max], [0.0]]).reshape(-1,1)
             cbf_h = np.array(h_cbf_list, dtype=float).reshape(-1,1)
             box_h = np.array(h_box,      dtype=float).reshape(-1,1)
             h_all = np.vstack([cbf_h, box_h])
-            cbf_G = np.vstack(G_cbf_list)    # shape (M, 4)
-            box_G = np.array([[ 1.,0,0,0]])   # for U1 <= U1_max
+            cbf_G = np.vstack(G_cbf_list)
+            box_G = np.array([[ 1.,0,0,0], [-1., 0., 0., 0.]])
             G_all = np.vstack([cbf_G, box_G])
             if G_cbf_list:
-                # --- Setup QP: min || U - U_nom ||^2 s.t. G_cbf * U <= h_cbf ---
-                P = matrix(np.eye(4))                 # Cost matrix: identity
-                q_qp = matrix(-U_nom)                 # Cost vector: -U_nom
-                G = matrix(G_all)     # Inequality constraint matrix
-                h_qp = matrix(h_all)   # Inequality constraint vector
-                # --- Solve QP ---
+                P = matrix(np.eye(4))
+                q_qp = matrix(-U_nom)
+                G = matrix(G_all)
+                h_qp = matrix(h_all)
 
                 try:
                     sol = solvers.qp(P, q_qp, G, h_qp)
                     if sol['status'] == 'optimal':
-                        U  = np.array(sol['x']).flatten() # Get safe control input U*
-                        # Calculate slack: slack = h_qp - G*U* >= 0
+                        U  = np.array(sol['x']).flatten()
                         slack_val = h_qp - G * sol['x']
                         self.cbf_pub.publish(Float64MultiArray(data=list(slack_val)))
                     else:
                          rospy.logwarn_throttle(1.0,"ZCBF-QP non-optimal (status: %s), using nominal U", sol['status'])
-                         U = U_nom # Fallback to nominal CLF control
+                         U = U_nom
                          self.cbf_pub.publish(Float64MultiArray(data=[0.0]*len(h_cbf_list)))
                 except ValueError:
-                    # This usually means infeasible QP
                     rospy.logwarn_throttle(1.0, "ZCBF-QP infeasible, using nominal U")
-                    U = U_nom # Fallback to nominal CLF control
+                    U = U_nom
                     self.cbf_pub.publish(Float64MultiArray(data=[0.0]*len(h_cbf_list)))
             else:
-                 # No obstacles triggered CBF, use nominal U
                  U = U_nom
                  self.cbf_pub.publish(Float64MultiArray(data=[]))
         else:
-             # Not in TRAJ mode or no obstacles defined
              U = U_nom
-             # Publish empty slack if CBF is inactive
              if self.state == State.TRAJ:
                  self.cbf_pub.publish(Float64MultiArray(data=[]))
 
+        w_sq = clip(np.dot(self.invA, U), 0, None)
+        w_cmd= clip(rt(w_sq), 0, self.w_max)
 
-        # --- Control Allocation (Using final U) ---
-        # Convert final control vector U = [U1, U2, U3, U4] to motor speeds
-        w_sq = clip(np.dot(self.invA, U), 0, None) # Calculate squared motor speeds
-        w_cmd= clip(rt(w_sq), 0, self.w_max)       # Calculate and clip motor speeds
-
-        # --- Publish Commands and Debug Info ---
         m = Actuators()
         m.header.stamp = now
         m.angular_velocities = w_cmd.tolist()
         self.cmd_pub.publish(m)
 
-        # Publish state and error information
         self.pubs["control/state"].publish(
             String(data=self.state.name))
         self.pubs["control/U"].publish(
-            Float64MultiArray(data=U)) # Publish the final U used
+            Float64MultiArray(data=U))
         self.pubs["control/omega_sq"].publish(
             Float64MultiArray(data=w_sq))
         self.pubs["error/position"].publish(
@@ -470,24 +434,20 @@ class ClfIrisController(object):
             Point(*tgt))
         self.pubs["control/desired_velocity"].publish(
             Vector3(*vd))
-        # Publish nominal acceleration for reference, even though ZCBF doesn't use it directly
         self.pubs["control/desired_acceleration"].publish(
             Vector3(*ad_nom))
         self.pubs["control/desired_attitude_deg"].publish(
             Point(*(math.degrees(i)
                     for i in (phi_d,theta_d,yd))))
-        # Publish virtual inputs derived from nominal U1 for reference
         self.pubs["control/virtual_inputs"].publish(
             Point(Uex,Uey,0.0))
 
         if DBG:
-            # Log the final U values used
             rospy.loginfo_throttle(
                 LOG_T,
                 "[%s] U=[%.2f, %.2f, %.2f, %.2f] (Nominal U=[%.2f, %.2f, %.2f, %.2f])",
                 self.state.name, U[0], U[1], U[2], U[3],
                 U_nom[0], U_nom[1], U_nom[2], U_nom[3])
-
 
     def shutdown(self):
         stop = Actuators()
@@ -497,7 +457,7 @@ class ClfIrisController(object):
             rospy.sleep(0.01)
 
 if __name__=="__main__":
-    rospy.init_node("zclf_iris_trajectory_controller", # Renamed node slightly
+    rospy.init_node("zclf_iris_trajectory_controller",
                     anonymous=True)
     try:
         ClfIrisController()

@@ -89,28 +89,7 @@
       </link>
     </model>
 
-    <model name='sphere_obstacle_2'>
-      <static>true</static>
-      <pose>13.75 0.00 18.00 0 0 0</pose>
-      <link name='link'>
-        <collision name='collision'>
-          <geometry>
-            <sphere><radius>0.50</radius></sphere>
-          </geometry>
-        </collision>
-        <visual name='visual'>
-          <geometry>
-            <sphere><radius>0.50</radius></sphere>
-          </geometry>
-          <material>
-            <script>
-              <uri>file://media/materials/scripts/gazebo.material</uri>
-              <name>Gazebo/Green</name>
-            </script>
-          </material>
-        </visual>
-      </link>
-    </model>
+    
 
     <model name='sphere_obstacle_3'>
       <static>true</static>
