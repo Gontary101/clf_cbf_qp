@@ -40,6 +40,7 @@ class ClfIrisController(object):
         self.Iy       = pget("I_y",0.0459)
         self.Iz       = pget("I_z",0.0977)
         self.J_inv_diag = np.diag([1.0/self.Ix, 1.0/self.Iy, 1.0/self.Iz])
+        self.J_mat    = np.diag([self.Ix, self.Iy, self.Iz])
         self.kf       = pget("motor_constant",8.54858e-06)
         self.km       = pget("moment_constant",1.3677728e-07)
         self.w_max    = pget("max_rot_velocity",838.0)
@@ -215,7 +216,7 @@ class ClfIrisController(object):
         now = rospy.Time.now()
 
         p = self.last.pose.pose.position
-        q_ros = self.last.pose.pose.orientation 
+        q_ros = self.last.pose.pose.orientation
         v = self.last.twist.twist.linear
         w = self.last.twist.twist.angular
         x,y,z = p.x, p.y, p.z
@@ -344,7 +345,7 @@ class ClfIrisController(object):
                 sigma  = -self.a1*np.arctan(self.a2*s)
                 sig_p  = -self.a1*self.a2/(1+(self.a2*s)**2)
                 sig_pp  =  2.0 * self.a1 * (self.a2 ** 2) * s / (1.0 + (self.a2 * s) ** 2) ** 2
-                
+
                 g_hat  = np.dot(r,r) - self.beta*r_safe**2 - sigma
                 R_Omxe3 = R_mat.dot(np.cross(w_body, e3_body))
                 g_hat_d= 2.0*np.dot(r, v_w) - sig_p*( np.dot(v_w,q)
@@ -354,22 +355,34 @@ class ClfIrisController(object):
                 Gamma1 = (2.0*s - sig_p)/self.m
                 r_b = np.dot(R_mat.T, r)
                 cross_rb_e3 = np.cross(r_b, e3_body)
-                
+
                 Gamma2_vec = sig_p * np.dot(cross_rb_e3, self.J_inv_diag)
                 dot_s   = np.dot(v_w, q) + np.dot(r, R_Omxe3)
-                Gamma3  = ( self.gamma * g_hat_d
-           + 2.0 * np.dot(v_w, v_w)
-           - sig_p * dot_s
-           - sig_pp * (dot_s ** 2)
-           - 2.0 * self.g * np.dot(r, e3_world)
-           + sig_p * self.g * q[2] )
+                term1 = self.gamma * g_hat_d
+                term2 = 2.0 * np.dot(v_w, v_w)
+                term3 = -2.0 * self.g * np.dot(r, e3_world)
+                term4 = -sig_pp * (dot_s ** 2)
+                term5 = sig_p * self.g * q[2]
+                term6 = -sig_p * (2.0 * np.dot(v_w, R_Omxe3))
+                Omega_cross_e3 = np.cross(w_body, e3_body)
+                Omega_cross_Omega_cross_e3 = np.cross(w_body, Omega_cross_e3)
+                R_Omega_cross_Omega_cross_e3 = np.dot(R_mat, Omega_cross_Omega_cross_e3)
+                term7 = -sig_p * np.dot(r, R_Omega_cross_Omega_cross_e3)
+                J_Omega = np.dot(self.J_mat, w_body)
+                Omega_cross_JOmega = np.cross(w_body, J_Omega)
+                xi = np.dot(self.J_inv_diag, Omega_cross_JOmega)
+                xi_cross_e3 = np.cross(xi, e3_body)
+                R_xi_cross_e3 = np.dot(R_mat, xi_cross_e3)
+                term8 = sig_p * np.dot(r, R_xi_cross_e3)
+
+                Gamma3 = term1 + term2 + term3 + term4 + term5 + term6 + term7 + term8
 
                 G_cbf_row  = np.hstack([Gamma1, Gamma2_vec])
                 h_cbf_val  = + Gamma3 + self.kappa*(h_val**(2*self.a+1))
 
                 G_cbf_list.append(-G_cbf_row)
                 h_cbf_list.append(h_cbf_val)
-                
+
             U1_max = 4 * self.kf * self.w_max**2
             h_box = np.array([[U1_max], [0.0]]).reshape(-1,1)
             cbf_h = np.array(h_cbf_list, dtype=float).reshape(-1,1)
