@@ -6,6 +6,10 @@
 <?xml version="1.0" ?>
 <sdf version="1.4">
   <world name="default">
+    <scene>
+    <shadows>false</shadows>
+    <grid>false</grid>
+    </scene>
     <include>
       <uri>model://ground_plane</uri>
     </include>
@@ -43,6 +47,12 @@
       <real_time_update_rate>100</real_time_update_rate>
       <gravity>0 0 -9.81</gravity>
     </physics>
+
+
+
+
+
+
 <model name='sphere_obstacle_0'>
       <static>true</static>
       <pose>-8.96 -15.52 8.00 0 0 0</pose> <!-- x y z roll pitch yaw -->

@@ -34,19 +34,19 @@
     <param name="helix_end_diameter"        value="15.0"/>
     <param name="helix_height"              value="30.0"/>
     <param name="helix_laps"                value="4.0"/>
-    <param name="trajectory_omega"          value="0.07"/>
+    <param name="trajectory_omega"          value="0.1"/>
     <param name="plot_save_dir"             value="$(find clf_cbf_qp)/plots"/>
     <param name="min_omega"                 value="0.0"/>
     <param name="max_omega"                 value="838.0"/>
     <param name="static_obstacles"
-           value="[ [-8.96, -15.52, 8.00, 1.00], [-7.92, 13.71, 13.00, 1.00], [13.75, 0.00, 18.00, 1.00], [-5.83, -10.10, 23.00, 1.00], [-4.79, 8.30, 28.00, 1.00] ]" />
+           value="[ [-8.96, -15.52, 8.00, 1.00], [-7.92, 13.71, 13.00, 1.00], [13.75, 0.00, 18.00, 1.00], [-5.83, -10.10, 23.00, 1.00], [-4.79, 8.30, 28.00, 1.00],  [-0.026 ,19.60 ,4.875, 1.00], [-4.8, 17.093 ,5.248, 1.00] ]" />
   </node>
-<node pkg="clf_cbf_qp" type="helix_clf_cbf.py"
+<node pkg="clf_cbf_qp" type="clf_ecbf_full_dynamics.py"
         name="clf_iris_trajectory_controller" output="screen">
 
     <!-- Provided Parameters -->
     <param name="static_obstacles"
-           value="[ [-8.96, -15.52, 8.00, 1.00], [-7.92, 13.71, 13.00, 1.00], [13.75, 0.00, 18.00, 1.00], [-5.83, -10.10, 23.00, 1.00], [-4.79, 8.30, 28.00, 1.00] ]" />
+           value="[ [-8.96, -15.52, 8.00, 1.00], [-7.92, 13.71, 13.00, 1.00], [13.75, 0.00, 18.00, 1.00], [-5.83, -10.10, 23.00, 1.00], [-4.79, 8.30, 28.00, 1.00],  [-0.026 ,19.60 ,4.875, 1.00], [-4.8, 17.093 ,5.248, 1.00] ]" />
     <param name="drone_radius" value="0.5" />
 
     <!-- Added Parameters (with defaults from script if not specified) -->
@@ -64,14 +64,14 @@
     <param name="max_rot_velocity" value="838.0" />
     <param name="min_thrust_factor" value="0.1" />
     <param name="gravity_comp_factor" value="1.022" />
-    <param name="max_tilt_angle_deg" value="30.0" />
+    <param name="max_tilt_angle_deg" value="60.0" />
 
     <!-- Helix Trajectory Parameters -->
     <param name="helix_start_diameter" value="40.0" />
     <param name="helix_end_diameter" value="15.0" />
     <param name="helix_height" value="30.0" />
     <param name="helix_laps" value="4.0" />
-    <param name="trajectory_omega" value="0.07" />
+    <param name="trajectory_omega" value="0.1" />
     <param name="fixed_yaw_deg" value="0.0" />
 
     <!-- Takeoff/Hover Parameters -->
@@ -90,14 +90,15 @@
     <param name="k_takeatt1" value="2.05" />
     <param name="k_takeatt2" value="4.1" />
     <!-- Trajectory Gains -->
-    <param name="k_trajpos1" value="0.8" />
+    <param name="k_trajpos1" value="1.5" />
     <param name="k_trajpos2" value="5.5" />
     <param name="k_trajatt1" value="16.0" />
     <param name="k_trajatt2" value="32.0" />
 
     <!-- CBF Parameters -->
-    <param name="cbf_k0" value="4.0" />
-    <param name="cbf_k1" value="16.0" />
+    <param name="cbf_k0" value="12.0" />
+    <param name="cbf_k1" value="14.0" />
+    <param name="cbf_slack_penalty" value="600.0" />
 
     <!-- Control Loop Rate -->
     <param name="control_rate" value="100.0" />

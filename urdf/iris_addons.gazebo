@@ -19,6 +19,7 @@
        - use_custom_static_wind_field: Whether to use a custom wind field file (true/false).
        - custom_wind_field_path: Path to the custom wind field file (relative to ~/.ros).
   -->
+  <!--
   <xacro:wind_plugin_macro
     namespace="${namespace}"
     xyz_offset="0 0 0"
@@ -32,6 +33,7 @@
     use_custom_static_wind_field="false"
     custom_wind_field_path=""
   />
+  -->
 
 </robot>
 
