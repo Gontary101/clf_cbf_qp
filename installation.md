@@ -149,3 +149,66 @@ Vous pouvez maintenant interagir avec votre application ROS comme d'habitude. Le
     sudo docker start ros_stage_container
     sudo docker exec -it ros_stage_container /bin/bash
     ```
+
+## Étape 6 : Mettre à jour le Dépôt `clf_cbf_qp` (Optionnel)
+
+Si vous avez besoin de récupérer les dernières modifications du dépôt `clf_cbf_qp`, notamment depuis une branche spécifique comme `clf`, suivez ces étapes **à l'intérieur du conteneur Docker** :
+
+1.  **Assurez-vous d'être dans le conteneur :**
+    Si vous n'êtes pas déjà dans le conteneur, redémarrez-le et attachez-vous-y :
+    ```bash
+    # Si le conteneur est arrêté
+    sudo docker start ros_stage_container
+    # sudo docker exec -it ros_stage_container bash
+    ```
+
+2.  **Naviguer vers le répertoire du dépôt :**
+    Le code source est monté dans `/root/danger_ws/src`. Allez dans le dossier spécifique du dépôt `clf_cbf_qp`.
+    ```bash
+    cd /root/danger_ws/src/clf_cbf_qp
+    ```
+    *Note : Si le dossier `clf_cbf_qp` n'existe pas, vous devrez d'abord cloner le dépôt :*
+    ```bash
+    # cd /root/danger_ws/src
+    # git clone https://github.com/Gontary101/clf_cbf_qp.git
+    # cd clf_cbf_qp
+    ```
+
+3.  **Vérifier l'état actuel et la branche:**
+    ```bash
+    git status
+    git branch
+    ```
+    Cela vous montre sur quelle branche vous êtes et si vous avez des modifications locales non commitées.
+
+4.  **Passer sur la branche `clf` :**
+    Si vous n'êtes pas déjà sur la branche `clf`, basculez dessus. Si la branche `clf` n'existe pas localement, cette commande la créera et la fera suivre la branche distante `origin/clf`.
+    ```bash
+    git checkout clf
+    ```
+    *Si vous rencontrez des problèmes (par exemple, des modifications locales non commitées), vous devrez peut-être les gérer d'abord (`git stash`, `git commit`, ou `git checkout -f clf` pour forcer*
+
+5.  **Récupérer les dernières modifications depuis le dépôt distant :**
+    Cette commande télécharge les dernières modifications de la branche `clf` depuis le dépôt distant (`origin`) et tente de les fusionner avec votre copie locale.
+    ```bash
+    git pull origin clf
+    ```
+    *Si vous êtes déjà sur la branche `clf` qui suit `origin/clf`, un simple `git pull` pourrait suffire.*
+
+6.  **Gérer les conflits (si nécessaire) :**
+    Si `git pull` signale des conflits de fusion (merge conflicts), cela signifie que vos modifications locales (si vous en aviez) entrent en conflit avec les modifications distantes. Vous devrez résoudre ces conflits manuellement dans les fichiers concernés, puis ajouter (`git add <fichier_modifié>`) et valider (`git commit`) la résolution.
+
+7.  **Recompiler l'espace de travail :**
+    Après avoir mis à jour le code source, retournez à la racine de l'espace de travail et recompilez.
+    ```bash
+    cd /root/danger_ws
+    source /opt/ros/melodic/setup.bash # Assurez-vous que ROS est sourcé
+    catkin build
+    ```
+
+8.  **Sourcer l'environnement local mis à jour :**
+    Mettez à jour votre environnement pour inclure les changements compilés.
+    ```bash
+    source devel/setup.bash
+    ```
+
