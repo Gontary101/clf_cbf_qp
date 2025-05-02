@@ -86,31 +86,33 @@ class ClfIrisController(object):
         self.gamma  = pget("zcbf_gamma", 5.0)
         self.kappa  = pget("zcbf_kappa", 18.0)
         self.a      = pget("zcbf_order_a", 0)
-
-        obstacles_str = pget("static_obstacles", "[[-8.96, -15.52, 8.00, 1.00]]")
-        default_obs = [[-8.96, -15.52, 8.00, 1.00]]
+        obstacles_str = pget("dynamic_obstacles",
+        "[[-8.96,-15.52,8.00, 0,0,0, 0,0,0, 1.00]]")  # x y z vx vy vz ax ay az r
+        #obstacles_str = pget("static_obstacles", "[[-8.96, -15.52, 8.00, 1.00]]")
+        #default_obs = [[-8.96, -15.52, 8.00, 1.00]]
+        default_obs = [[-8.96,-15.52,8.00, 0,0,0, 0,0,0, 1.00]]
         try:
             obstacles_list = ast.literal_eval(obstacles_str)
             if not isinstance(obstacles_list, list):
                  rospy.logwarn("Parsed static_obstacles is not a list. Using default.")
                  obstacles_list = default_obs
-            elif obstacles_list and not all(isinstance(o, (list, tuple)) and len(o) == 4 and all(isinstance(n, (int, float)) for n in o) for o in obstacles_list):
-                 rospy.logwarn("Invalid format in static_obstacles list items. Expected list of [x,y,z,radius]. Using default.")
+            elif obstacles_list and not all(isinstance(o, (list, tuple)) and len(o) == 10 and all(isinstance(n, (int, float)) for n in o) for o in obstacles_list):
+                 rospy.logwarn("Invalid format in static_obstacles list items. Expected [x,y,z,vx,vy,vz,ax,ay,az,r]. Using default.")
                  obstacles_list = default_obs
 
             self.obs = np.array(obstacles_list, dtype=float)
             if self.obs.ndim == 1 and self.obs.size == 0:
-                 self.obs = np.empty((0, 4), dtype=float)
-            elif self.obs.ndim == 1 and self.obs.shape[0] == 4:
-                self.obs = self.obs.reshape(1, 4)
-            elif self.obs.ndim != 2 or (self.obs.size > 0 and self.obs.shape[1] != 4):
+                 self.obs = np.empty((0, 10), dtype=float)
+            elif self.obs.ndim == 1 and self.obs.shape[0] == 10:
+                self.obs = self.obs.reshape(1, 10)
+            elif self.obs.ndim != 2 or (self.obs.size > 0 and self.obs.shape[1] != 10):
                 rospy.logwarn("Parsed static_obstacles does not have shape (N, 4). Using default.")
                 self.obs = np.array(default_obs, dtype=float)
 
             if self.obs.size > 0:
-                rospy.loginfo("Loaded %d static obstacles.", self.obs.shape[0])
+                rospy.loginfo("Loaded %d dynamic obstacles.", self.obs.shape[0])
             else:
-                rospy.loginfo("No static obstacles loaded.")
+                rospy.loginfo("No dynamic obstacles loaded.")
 
         except (ValueError, SyntaxError) as e:
              rospy.logwarn("Error parsing static_obstacles parameter '%s': %s. Using default.", obstacles_str, e)
@@ -335,12 +337,17 @@ class ClfIrisController(object):
             G_cbf_list = []
             h_cbf_list = []
 
-            for ox,oy,oz,r_o in self.obs:
-                xo = np.array([ox, oy, oz])
+            for obs_row in self.obs:
+                #xo = np.array([ox, oy, oz])
+                ox,oy,oz,vx,vy,vz,ax,ay,az,r_o = obs_row
+                xo   = np.array([ox,oy,oz])
+                Vo   = np.array([vx,vy,vz])
+                Ao   = np.array([ax,ay,az])
                 r_safe = r_o + self.r_drone
 
                 r      = p_vec - xo
                 q      = R_mat[:,2]
+                r_dot  = v_w - Vo      #   V - Vo
                 s      = np.dot(r, q)
                 sigma  = -self.a1*np.arctan(self.a2*s)
                 sig_p  = -self.a1*self.a2/(1+(self.a2*s)**2)
@@ -348,8 +355,10 @@ class ClfIrisController(object):
 
                 g_hat  = np.dot(r,r) - self.beta*r_safe**2 - sigma
                 R_Omxe3 = R_mat.dot(np.cross(w_body, e3_body))
-                g_hat_d= 2.0*np.dot(r, v_w) - sig_p*( np.dot(v_w,q)
-                          + np.dot(r, R_Omxe3) )
+                g_hat_d= 2.0*np.dot(r, r_dot) - sig_p*( np.dot(r_dot,q)
+                         + np.dot(r, R_Omxe3) )
+                #g_hat_d= 2.0*np.dot(r, v_w) - sig_p*( np.dot(v_w,q)
+                 #         + np.dot(r, R_Omxe3) )
                 h_val  = self.gamma*g_hat + g_hat_d
 
                 Gamma1 = (2.0*s - sig_p)/self.m
@@ -357,25 +366,34 @@ class ClfIrisController(object):
                 cross_rb_e3 = np.cross(r_b, e3_body)
 
                 Gamma2_vec = sig_p * np.dot(cross_rb_e3, self.J_inv_diag)
-                dot_s   = np.dot(v_w, q) + np.dot(r, R_Omxe3)
+                dot_s   = np.dot(r_dot, q) + np.dot(r, R_Omxe3)
+                #term1 = self.gamma * g_hat_d
+                #term2 = 2.0 * np.dot(v_w, v_w)
+                #term3 = -2.0 * self.g * np.dot(r, e3_world)
+                #term4 = -sig_pp * (dot_s ** 2)
+                #term5 = sig_p * self.g * q[2]
+                #term6 = -sig_p * (2.0 * np.dot(v_w, R_Omxe3))
                 term1 = self.gamma * g_hat_d
-                term2 = 2.0 * np.dot(v_w, v_w)
+                term2 = 2.0 * np.dot(r_dot, r_dot)
                 term3 = -2.0 * self.g * np.dot(r, e3_world)
-                term4 = -sig_pp * (dot_s ** 2)
-                term5 = sig_p * self.g * q[2]
-                term6 = -sig_p * (2.0 * np.dot(v_w, R_Omxe3))
+                term4 = -2.0 * np.dot(r, Ao)          # new acceleration term
+                term5 = -sig_pp * (dot_s ** 2)
+                term6 = sig_p * self.g * q[2]
+                term7 = -sig_p * (2.0 * np.dot(r_dot, R_Omxe3))
                 Omega_cross_e3 = np.cross(w_body, e3_body)
                 Omega_cross_Omega_cross_e3 = np.cross(w_body, Omega_cross_e3)
                 R_Omega_cross_Omega_cross_e3 = np.dot(R_mat, Omega_cross_Omega_cross_e3)
-                term7 = -sig_p * np.dot(r, R_Omega_cross_Omega_cross_e3)
+                #term7 = -sig_p * np.dot(r, R_Omega_cross_Omega_cross_e3)
                 J_Omega = np.dot(self.J_mat, w_body)
                 Omega_cross_JOmega = np.cross(w_body, J_Omega)
                 xi = np.dot(self.J_inv_diag, Omega_cross_JOmega)
                 xi_cross_e3 = np.cross(xi, e3_body)
                 R_xi_cross_e3 = np.dot(R_mat, xi_cross_e3)
-                term8 = sig_p * np.dot(r, R_xi_cross_e3)
+                term8 = -sig_p * np.dot(r, R_Omega_cross_Omega_cross_e3)
+                term9 =  sig_p * np.dot(r, R_xi_cross_e3)
+                #term8 = sig_p * np.dot(r, R_xi_cross_e3)
 
-                Gamma3 = term1 + term2 + term3 + term4 + term5 + term6 + term7 + term8
+                Gamma3 = term1 + term2 + term3 + term4 + term5 + term6 + term7 + term8 + term9
 
                 G_cbf_row  = np.hstack([Gamma1, Gamma2_vec])
                 h_cbf_val  = + Gamma3 + self.kappa*(h_val**(2*self.a+1))
