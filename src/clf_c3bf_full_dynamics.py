@@ -61,7 +61,7 @@ class ClfIrisController(object):
         self.k_r = (self.r0 - 0.5 * self.d_end) / theta_tot
         self.k_z = self.height / theta_tot
         self.Fz_min = self.m * self.g * self.min_f
-        self.Fz_max = 4.0 * self.kf * (self.w_max ** 2)
+        self.Fz_max = 18
         self.tan_tilt = math.tan(self.max_tilt)
         # 8-sided polygon ≈ cone ‖F_xy‖ ≤ F_z tanθ
         self.tilt_dirs = [(math.cos(2*math.pi*j/8.0),

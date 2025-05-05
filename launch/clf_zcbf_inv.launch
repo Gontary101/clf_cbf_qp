@@ -1,0 +1,179 @@
+<launch>
+    <arg name="world_name"                default="basic"/>
+    <arg name="paused"                    default="false"/>
+    <arg name="gui"                       default="true"/>
+    <arg name="debug"                     default="false"/>
+    <arg name="verbose"                   default="false"/>
+
+    <arg name="enable_logging"            default="false" />
+    <arg name="enable_ground_truth"       default="true" />
+    <arg name="enable_mavlink_interface"  default="false" />
+    <arg name="log_file_base"             default="iris"/>
+    <arg name="wait_to_record_bag"        default="false" />
+
+    <arg name="helix_start_diameter"      default="40.0"/>
+    <arg name="helix_height"              default="30.0"/>
+    <arg name="takeoff_clearance_low"     default="3.0"/>
+    <arg name="takeoff_clearance_high"    default="14.25"/>
+    <arg name="phase_offset_laps"         default="1.5"/>
+
+    <arg name="start_radius" default="$(eval 0.5 * arg('helix_start_diameter'))"/>
+    <arg name="spawn_z"      default="0.1"/>
+
+    <arg name="iris_x"      default="$(arg start_radius)"/>
+    <arg name="iris_y"      default="0.0"/>
+    <arg name="iris_z_spawn" default="$(arg spawn_z)"/>
+    <arg name="iris_z_takeoff" default="$(arg takeoff_clearance_low)"/>
+    <arg name="iris_yaw"    default="0.0"/>
+
+    <arg name="iris2_x"     default="$(eval -arg('start_radius'))"/>
+    <arg name="iris2_y"     default="0.0"/>
+    <arg name="iris2_z_spawn" default="$(arg spawn_z)"/>
+    <arg name="iris2_z_takeoff" default="$(arg takeoff_clearance_high)"/>
+    <arg name="iris2_yaw"   default="0.0"/>
+    <arg name="iris2_phase_offset_rad" default="$(eval arg('phase_offset_laps') * 2.0 * 3.1415926535)"/>
+
+    <include file="$(find gazebo_ros)/launch/empty_world.launch">
+        <arg name="world_name" value="$(find rotors_gazebo)/worlds/$(arg world_name).world"/>
+        <arg name="paused" value="$(arg paused)"/>
+        <arg name="gui" value="$(arg gui)"/>
+        <arg name="debug" value="$(arg debug)"/>
+        <arg name="verbose" value="$(arg verbose)"/>
+    </include>
+
+    <group ns="iris">
+        <param name="robot_description"
+               command="$(find xacro)/xacro '$(find clf_cbf_qp)/urdf/my_iris.xacro'
+               mav_name:='iris'
+               namespace:='iris'
+               enable_logging:=$(arg enable_logging)
+               enable_ground_truth:=$(arg enable_ground_truth)
+               enable_mavlink_interface:=$(arg enable_mavlink_interface)
+               log_file:='$(arg log_file_base)_1'
+               wait_to_record_bag:=$(arg wait_to_record_bag)
+               gazebo_snippets_file:='$(find clf_cbf_qp)/urdf/iris_addons.gazebo'
+               --inorder" />
+
+        <node name="spawn_iris" pkg="gazebo_ros" type="spawn_model"
+              args="-urdf -param robot_description -model iris
+                    -x $(arg iris_x) -y $(arg iris_y) -z $(arg iris_z_spawn)
+                    -R 0 -P 0 -Y $(arg iris_yaw)"
+              respawn="false" output="screen" />
+
+        <node pkg="clf_cbf_qp" type="zcbf_inv.py"
+              name="clf_iris_trajectory_controller" output="screen">
+
+            <param name="namespace" value="iris" />
+            <param name="use_model_states" value="true" />
+            <param name="control_rate" value="100.0" />
+            <param name="mass" value="1.5" /> <param name="gravity" value="9.81" />
+            <param name="I_x" value="0.0348" /> <param name="I_y" value="0.0459" /> <param name="I_z" value="0.0977" />
+            <param name="motor_constant" value="8.54858e-06" /> <param name="moment_constant" value="1.3677728e-07" />
+            <param name="max_rot_velocity" value="838.0" /> <param name="min_thrust_factor" value="0.1" />
+            <param name="gravity_comp_factor" value="1.022" /> <param name="max_tilt_angle_deg" value="30.0" />
+            <param name="drone_radius" value="0.5" />
+            <param name="helix_start_diameter" value="$(arg helix_start_diameter)" />
+            <param name="helix_end_diameter" value="15.0" />
+            <param name="helix_height" value="$(arg helix_height)" />
+            <param name="helix_laps" value="4.0" />
+            <param name="trajectory_omega" value="0.07" />
+            <param name="fixed_yaw_deg" value="0.0" />
+            <param name="invert_trajectory" value="false"/>
+            <param name="phase_offset"      value="0.0"/>
+            <param name="takeoff_x" value="$(arg iris_x)" />
+            <param name="takeoff_y" value="$(arg iris_y)" />
+            <param name="takeoff_height" value="$(arg iris_z_takeoff)" />
+            <param name="hover_pos_threshold" value="0.15" />
+            <param name="hover_vel_threshold" value="0.1" />
+            <param name="hover_stabilization_secs" value="2.0" />
+            <param name="k_takepos1" value="0.22" /><param name="k_takepos2" value="0.8" />
+            <param name="k_takeatt1" value="2.05" /><param name="k_takeatt2" value="4.1" />
+            <param name="k_trajpos1" value="1.5" /><param name="k_trajpos2" value="5.5" />
+            <param name="k_trajatt1" value="16.0" /><param name="k_trajatt2" value="32.0" />
+            <param name="dynamic_obstacles"
+                   value="[[-8.96, -15.52, 8.00, 1.00], [-7.92, 13.71, 13.00, 1.00], [-5.83, -10.10, 23.00, 1.00], [-4.79, 8.30, 28.00, 1.00],  [-0.026 ,19.60 ,4.875, 1.00], [-4.8, 17.093 ,5.248, 1.00]]" />
+            <param name="zcbf_beta"   value="1.0" /> <param name="zcbf_a1"     value="0.2" />
+            <param name="zcbf_a2"     value="1.0" /> <param name="zcbf_gamma"  value="2.4" />
+            <param name="zcbf_kappa"  value="1.0" /> <param name="zcbf_order_a" value="0" />
+        </node>
+    </group>
+
+    <group ns="iris2">
+        <param name="robot_description"
+               command="$(find xacro)/xacro '$(find clf_cbf_qp)/urdf/my_iris.xacro'
+               mav_name:='iris2'
+               namespace:='iris2'
+               enable_logging:=$(arg enable_logging)
+               enable_ground_truth:=$(arg enable_ground_truth)
+               enable_mavlink_interface:=$(arg enable_mavlink_interface)
+               log_file:='$(arg log_file_base)_2'
+               wait_to_record_bag:=$(arg wait_to_record_bag)
+               gazebo_snippets_file:='$(find clf_cbf_qp)/urdf/iris_addons.gazebo'
+               --inorder" />
+
+        <node name="spawn_iris2" pkg="gazebo_ros" type="spawn_model"
+              args="-urdf -param robot_description -model iris2
+                    -x $(arg iris2_x) -y $(arg iris2_y) -z $(arg iris2_z_spawn)
+                    -R 0 -P 0 -Y $(arg iris2_yaw)"
+              respawn="false" output="screen" />
+
+        <node pkg="clf_cbf_qp" type="zcbf_inv.py"
+              name="clf_iris2_trajectory_controller" output="screen">
+
+            <param name="namespace" value="iris2" />
+            <param name="use_model_states" value="true" />
+            <param name="control_rate" value="100.0" />
+            <param name="mass" value="1.5" /> <param name="gravity" value="9.81" />
+            <param name="I_x" value="0.0348" /> <param name="I_y" value="0.0459" /> <param name="I_z" value="0.0977" />
+            <param name="motor_constant" value="8.54858e-06" /> <param name="moment_constant" value="1.3677728e-07" />
+            <param name="max_rot_velocity" value="838.0" /> <param name="min_thrust_factor" value="0.1" />
+            <param name="gravity_comp_factor" value="1.022" /> <param name="max_tilt_angle_deg" value="30.0" />
+            <param name="drone_radius" value="0.5" />
+            <param name="helix_start_diameter" value="$(arg helix_start_diameter)" />
+            <param name="helix_end_diameter" value="15.0" />
+            <param name="helix_height" value="$(arg helix_height)" />
+            <param name="helix_laps" value="4.0" />
+            <param name="trajectory_omega" value="0.07" />
+            <param name="fixed_yaw_deg" value="0.0" />
+            <param name="invert_trajectory" value="true"/>
+            <param name="phase_offset"      value="$(arg iris2_phase_offset_rad)"/>
+            <param name="remote_state_topic" value="/iris/clf_iris_trajectory_controller/control/state"/>
+            <param name="takeoff_x" value="$(arg iris2_x)" />
+            <param name="takeoff_y" value="$(arg iris2_y)" />
+            <param name="takeoff_height" value="$(arg iris2_z_takeoff)" />
+            <param name="hover_pos_threshold" value="0.15" />
+            <param name="hover_vel_threshold" value="0.1" />
+            <param name="hover_stabilization_secs" value="2.0" />
+            <param name="k_takepos1" value="0.22" /><param name="k_takepos2" value="0.8" />
+            <param name="k_takeatt1" value="2.05" /><param name="k_takeatt2" value="4.1" />
+            <param name="k_trajpos1" value="1.5" /><param name="k_trajpos2" value="5.5" />
+            <param name="k_trajatt1" value="16.0" /><param name="k_trajatt2" value="32.0" />
+             <param name="dynamic_obstacles"
+                   value="[[0.0, 0.0, 0.0, 0.0]]" />
+            <param name="zcbf_beta"   value="1.0" /> <param name="zcbf_a1"     value="0.2" />
+            <param name="zcbf_a2"     value="1.0" /> <param name="zcbf_gamma"  value="2.4" />
+            <param name="zcbf_kappa"  value="1.0" /> <param name="zcbf_order_a" value="0" />
+        </node>
+    </group>
+
+    <node name="trajectory_plotter_node"
+          pkg="clf_cbf_qp"
+          type="helix_plotter.py"
+          output="screen">
+        <param name="odom_topic"                value="/iris/ground_truth/odometry"/>
+        <param name="omega_sq_topic"            value="/iris/clf_iris_trajectory_controller/control/omega_sq"/>
+        <param name="thrust_topic"              value="/iris/clf_iris_trajectory_controller/control/U"/>
+        <param name="state_topic"               value="/iris/clf_iris_trajectory_controller/control/state"/>
+        <param name="helix_start_diameter"      value="$(arg helix_start_diameter)"/>
+        <param name="helix_end_diameter"        value="15.0"/>
+        <param name="helix_height"              value="$(arg helix_height)"/>
+        <param name="helix_laps"                value="4.0"/>
+        <param name="trajectory_omega"          value="0.07"/>
+        <param name="plot_save_dir"             value="$(find clf_cbf_qp)/plots"/>
+        <param name="min_omega"                 value="0.0"/>
+        <param name="max_omega"                 value="838.0"/>
+        <param name="static_obstacles"
+               value="[  [0.0, 0.0, 0.0, 0.0]]" />
+    </node>
+
+</launch>

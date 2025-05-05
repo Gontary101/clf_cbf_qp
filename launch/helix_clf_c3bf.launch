@@ -74,6 +74,11 @@
     <param name="trajectory_omega" value="0.07" />
     <param name="fixed_yaw_deg" value="0.0" />
 
+
+
+
+
+
     <!-- Takeoff/Hover Parameters -->
     <!-- Default takeoff_x is 0.5 * helix_start_diameter = 20.0 -->
     <param name="takeoff_x" value="20.0" />
@@ -96,7 +101,7 @@
     <param name="k_trajatt2" value="32.0" />
 
     <!-- CBF Parameters -->
-    <param name="cbf_gamma" value="400.0"/>
+    <param name="cbf_gamma" value="1200.0"/>
     <param name="drone_radius" value="0.5" />
 
     <!-- Control Loop Rate -->

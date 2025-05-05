@@ -37,4 +37,5 @@ smc_position_controller.launch
 smc_position.launch
 obstacles.world
 rotors_obstacle_course_world.world
+dynamic_obstacle_manager.py
 

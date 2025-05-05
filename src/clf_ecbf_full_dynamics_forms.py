@@ -297,8 +297,9 @@ class ClfIrisController(object):
                 psi_rhs = 0.0
                 if self.cbf_form == 1:   
                     # psi1 = h0_dot + p1 * h0 # Form 1: α2 = k1 √ψ1
+                    EPS_SQRT = 1e-6 
                     psi1      = Bd + self.p1 * Br          # ψ1 = ḃ + k0 b
-                    sqrt_psi1 = math.sqrt(max(psi1, 1e-9))  
+                    sqrt_psi1 = math.sqrt(psi1 + EPS_SQRT) # avoid sqrt(0)
                     psi_rhs = (2.0*v2 - 2.0*g_prz
                                + self.p1*Bd
                                + self.p2*sqrt_psi1)
