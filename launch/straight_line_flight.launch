@@ -7,7 +7,7 @@
   <arg name="verbose"                   default="false"/>
   <arg name="use_model_states_for_control" default="true"/>
 
-  <include file="$(find fly_bot)/launch/spawn_rotors_iris.launch">
+  <include file="$(find clf_cbf_qp)/launch/spawn_rotors_iris.launch">
     <arg name="namespace" value="$(arg namespace)"/>
     <arg name="world_name" value="$(arg world_name)"/>
     <arg name="paused"     value="$(arg paused)"/>
@@ -24,7 +24,7 @@
   <!-- Commented out helix-specific plotter node -->
   <!--
   <node name="trajectory_plotter_node"
-        pkg="fly_bot"
+        pkg="clf_cbf_qp"
         type="helix_plotter.py"
         output="screen">
     <param name="odom_topic"                value="/$(arg namespace)/ground_truth/odometry"/>
@@ -32,7 +32,7 @@
     <param name="thrust_topic"              value="/clf_iris_straight_line_controller/control/U"/>
     <param name="state_topic"               value="/clf_iris_straight_line_controller/control/state"/>
 
-    <param name="plot_save_dir"             value="$(find fly_bot)/plots"/>
+    <param name="plot_save_dir"             value="$(find clf_cbf_qp)/plots"/>
     <param name="min_omega"                 value="0.0"/>
     <param name="max_omega"                 value="838.0"/>
     <param name="static_obstacles"
@@ -40,7 +40,7 @@
   </node>
   -->
 
-  <node pkg="fly_bot" type="straight_line_flight.py"
+  <node pkg="clf_cbf_qp" type="straight_line_flight.py"
         name="clf_iris_straight_line_controller" output="screen">
 
     <!-- Provided Parameters -->
@@ -103,7 +103,7 @@
         
 <!-- Node for Plotting Straight Line Trajectory Data -->
   <node name="straight_line_plotter_node"
-        pkg="fly_bot"  
+        pkg="clf_cbf_qp"  
         type="straight_line_flight_plotter.py"
         output="screen">
 
@@ -128,7 +128,7 @@
            <!-- Note: Added zero velocities explicitly, matching plotter's internal format -->
 
     <!-- Plotting & Filtering Parameters (Adjust as needed) -->
-    <param name="plot_save_dir"    value="$(find fly_bot)/plots"/> <!-- Saves plots in a 'plots' subdir of your package -->
+    <param name="plot_save_dir"    value="$(find clf_cbf_qp)/plots"/> <!-- Saves plots in a 'plots' subdir of your package -->
     <param name="min_omega"        value="0.0"/>
     <param name="max_omega"        value="838.0"/>
     <param name="filter_window_odom" value="51"/>

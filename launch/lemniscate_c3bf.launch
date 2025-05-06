@@ -8,7 +8,7 @@
   <arg name="use_sim_time"              default="true"/> <!-- Essential for Gazebo -->
 
 
-  <include file="$(find fly_bot)/launch/spawn_rotors_iris.launch">
+  <include file="$(find clf_cbf_qp)/launch/spawn_rotors_iris.launch">
     <arg name="namespace" value="$(arg namespace)"/>
     <arg name="world_name" value="$(arg world_name)"/>
     <arg name="paused"     value="$(arg paused)"/>
@@ -23,7 +23,7 @@
 
   <!-- 3. Launch the Controller Node -->
   <!-- Note: Assumes your script is now named lemniscate_c3bf.py -->
-  <node pkg="fly_bot" type="lemniscate_c3bf.py"
+  <node pkg="clf_cbf_qp" type="lemniscate_c3bf.py"
         name="clf_iris_trajectory_controller" output="screen">
 
     <!-- Parameters loaded here -->
@@ -93,7 +93,7 @@
 
 
   <node name="trajectory_plotter_node"
-        pkg="fly_bot"
+        pkg="clf_cbf_qp"
         type="lemniscate_c3bf_plotter.py" 
         output="screen">
     <!-- Provide necessary topics -->
@@ -108,7 +108,7 @@
                 [ 3.71, -1.53, 3.00, 1.00] ]" />
 
     <!-- Other plotter params like save_dir, helix params (if needed for desired path) -->
-    <param name="plot_save_dir"        value="$(find fly_bot)/plots"/>
+    <param name="plot_save_dir"        value="$(find clf_cbf_qp)/plots"/>
     <param name="helix_start_diameter" value="40.0" />
     <param name="helix_end_diameter"   value="15.0" />
     <param name="helix_height"         value="30.0" />

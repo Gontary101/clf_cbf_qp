@@ -66,7 +66,7 @@ class Plotter(object):
         self.xy0  = None
         self.z0   = None
         self.data = {'t':[],'x':[],'y':[],'z':[],'vx':[],'vy':[],'vz':[],
-                     'w_t':[],'w':[],'u_t':[],'u1':[]}
+                     'w_t':[],'w':[],'u_t':[],'u1':[], 'u2':[], 'u3':[], 'u4':[]}
         self.rec  = False
         self.done = False
 
@@ -111,7 +111,17 @@ class Plotter(object):
     def cb_thrust(self,msg):
         if self.rec and not self.done:
             self.data['u_t'].append(rospy.Time.now().to_sec())
-            self.data['u1'].append(msg.data[0] if msg.data else 0.0)
+            if msg.data and len(msg.data) == 4:
+                self.data['u1'].append(msg.data[0])
+                self.data['u2'].append(msg.data[1])
+                self.data['u3'].append(msg.data[2])
+                self.data['u4'].append(msg.data[3])
+            else:
+                rospy.logwarn_throttle(10, "Thrust/Torque message received with unexpected data length or empty: %s", str(msg.data))
+                self.data['u1'].append(0.0)
+                self.data['u2'].append(0.0)
+                self.data['u3'].append(0.0)
+                self.data['u4'].append(0.0)
 
     @staticmethod
     def R(phi,th,psi):
@@ -281,13 +291,51 @@ class Plotter(object):
             plt.legend();plt.grid()
             plt.savefig(base+"_omega.png");plt.close()
 
-        if self.data['u1']:
-            Tu=np.array(self.data['u_t'])-self.t0.to_sec()
-            U=np.array(self.data['u1'])
-            if self.use_filt:U=FILT(U,self.fw_t,self.fp_t)
-            plt.figure(figsize=(12,4));plt.plot(Tu,U)
-            plt.xlabel('t (s)');plt.ylabel('U1 (N)');plt.grid()
-            plt.savefig(base+"_thrust.png");plt.close()
+        if self.data['u_t']:
+            Tu = np.array(self.data['u_t']) - self.t0.to_sec()
+            U1 = np.array(self.data['u1'])
+            U2 = np.array(self.data['u2'])
+            U3 = np.array(self.data['u3'])
+            U4 = np.array(self.data['u4'])
+
+            if self.use_filt and len(Tu) >= self.fw_t:
+                U1 = FILT(U1, self.fw_t, self.fp_t)
+                U2 = FILT(U2, self.fw_t, self.fp_t)
+                U3 = FILT(U3, self.fw_t, self.fp_t)
+                U4 = FILT(U4, self.fw_t, self.fp_t)
+
+            fig, axs = plt.subplots(2, 2, figsize=(12, 8), sharex=True)
+            fig.suptitle('Control Inputs vs Time')
+
+            # U1 - Thrust
+            axs[0, 0].plot(Tu, U1, label='U1')
+            axs[0, 0].set_ylabel('U1 (N)')
+            axs[0, 0].grid(True)
+            axs[0, 0].legend()
+
+            # U2 - Roll Torque
+            axs[0, 1].plot(Tu, U2, label='U2')
+            axs[0, 1].set_ylabel('U2 (Nm)')
+            axs[0, 1].grid(True)
+            axs[0, 1].legend()
+
+            # U3 - Pitch Torque
+            axs[1, 0].plot(Tu, U3, label='U3')
+            axs[1, 0].set_ylabel('U3 (Nm)')
+            axs[1, 0].set_xlabel('t (s)')
+            axs[1, 0].grid(True)
+            axs[1, 0].legend()
+
+            # U4 - Yaw Torque
+            axs[1, 1].plot(Tu, U4, label='U4')
+            axs[1, 1].set_ylabel('U4 (Nm)')
+            axs[1, 1].set_xlabel('t (s)')
+            axs[1, 1].grid(True)
+            axs[1, 1].legend()
+
+            fig.tight_layout(rect=[0, 0.03, 1, 0.95])
+            plt.savefig(base + "_control_inputs.png")
+            plt.close(fig)
 
         rospy.loginfo("Plots saved to %s_*",base)
 

@@ -6,7 +6,7 @@
     <arg name="log_file" default="$(arg mav_name)" doc="Log file name prefix"/>
 
     <arg name="paused" default="false" doc="Start Gazebo paused"/>
-    <arg name="gui" default="true" doc="Start Gazebo GUI"/>
+    <arg name="gui" default="false" doc="Start Gazebo GUI"/>
     <arg name="debug" default="false"/>
     <arg name="verbose" default="false"/>
 
@@ -23,7 +23,7 @@
     <!-- Start Gazebo with the specified world -->
     <include file="$(find gazebo_ros)/launch/empty_world.launch">
         <!-- Use a world from rotors_gazebo for consistency -->
-        <arg name="world_name" value="$(find fly_bot)/worlds/lemniscate.world"/>
+        <arg name="world_name" value="$(find clf_cbf_qp)/worlds/helix.world"/>
         <!-- This line correctly passes the paused argument value -->
         <arg name="paused" value="$(arg paused)"/>
         <arg name="gui" value="$(arg gui)"/>
@@ -33,7 +33,7 @@
 
     <!-- Load the Iris URDF/XACRO into the ROS Parameter Server -->
     <param name="robot_description"
-           command="$(find xacro)/xacro '$(find fly_bot)/urdf/my_iris.xacro'
+           command="$(find xacro)/xacro '$(find clf_cbf_qp)/urdf/my_iris.xacro'
            mav_name:=$(arg mav_name)
            namespace:=$(arg namespace)
            enable_logging:=$(arg enable_logging)
@@ -41,13 +41,13 @@
            enable_mavlink_interface:=$(arg enable_mavlink_interface)
            log_file:=$(arg log_file)
            wait_to_record_bag:=$(arg wait_to_record_bag)
-	   gazebo_snippets_file:='$(find fly_bot)/urdf/iris_addons.gazebo'
+	   gazebo_snippets_file:='$(find clf_cbf_qp)/urdf/iris_addons.gazebo'
            --inorder" />
 
     <!-- Spawn the robot model from the Parameter Server into Gazebo -->
     <node name="spawn_$(arg namespace)" pkg="gazebo_ros" type="spawn_model"
           args="-urdf -param robot_description -model $(arg namespace)
-                -x 31 -y 0 -z 0.1
+                -x 0 -y 0 -z 0.1
                 -R 0 -P 0 -Y 0"
           respawn="false" output="screen" />
           <!-- REMOVED '-unpause $(arg paused)' from here -->

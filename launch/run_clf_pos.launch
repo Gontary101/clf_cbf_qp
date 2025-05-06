@@ -7,7 +7,7 @@
     <arg name="verbose" default="false"/>
     <arg name="use_model_states_for_control" default="false"/>
 
-    <include file="$(find fly_bot)/launch/spawn_rotors_iris.launch">
+    <include file="$(find clf_cbf_qp)/launch/spawn_rotors_iris.launch">
         <arg name="namespace" value="$(arg namespace)"/>
         <arg name="world_name" value="$(arg world_name)"/>
         <arg name="paused" value="$(arg paused)"/>
@@ -16,7 +16,7 @@
         <arg name="verbose" value="$(arg verbose)"/>
     </include>
 
-    <node name="clf_iris_position_controller" pkg="fly_bot" type="clf_position_iris.py" output="screen">
+    <node name="clf_iris_position_controller" pkg="clf_cbf_qp" type="clf_position_iris.py" output="screen">
         <param name="namespace" value="$(arg namespace)" />
         <param name="use_model_states" value="$(arg use_model_states_for_control)" />
         <param name="mass" value="1.5" />
@@ -36,14 +36,14 @@
         <param name="control_rate" value="100.0"/>
     </node>
 
-    <node name="convergence_plotter_iris" pkg="fly_bot" type="convergence_plotter.py" output="screen">
+    <node name="convergence_plotter_iris" pkg="clf_cbf_qp" type="convergence_plotter.py" output="screen">
         <param name="topic" value="/$(arg namespace)/ground_truth/pose" /> <!-- Using ground_truth/pose -->
 
         <param name="target_x" value="5.0" />
         <param name="target_y" value="-10.6" />
         <param name="target_z" value="3.0" />
 
-        <param name="plot_save_dir" value="$(find fly_bot)/plots" />
+        <param name="plot_save_dir" value="$(find clf_cbf_qp)/plots" />
 
         <param name="settling_threshold_percent" value="2.0" />
         <param name="thrust_topic" value="/clf_iris_position_controller/control/U" />

@@ -8,7 +8,7 @@
   <arg name="use_model_states_for_control" default="true"/>
 
   <!-- spawn the Iris in Gazebo -->
-  <include file="$(find fly_bot)/launch/spawn_rotors_iris.launch">
+  <include file="$(find clf_cbf_qp)/launch/spawn_rotors_iris.launch">
     <arg name="namespace"    value="$(arg namespace)"/>
     <arg name="world_name"   value="$(arg world_name)"/>
     <arg name="paused"       value="$(arg paused)"/>
@@ -23,7 +23,7 @@
 
   <!-- trajectory plotter (point at new controller topics) -->
   <node name="trajectory_plotter_node"
-        pkg="fly_bot"
+        pkg="clf_cbf_qp"
         type="helix_plotter.py"
         output="screen">
     <param name="odom_topic"     value="/$(arg namespace)/ground_truth/odometry"/>
@@ -36,7 +36,7 @@
     <param name="helix_height"         value="30.0"/>
     <param name="helix_laps"           value="4.0"/>
     <param name="trajectory_omega"     value="0.07"/>
-    <param name="plot_save_dir"        value="$(find fly_bot)/plots"/>
+    <param name="plot_save_dir"        value="$(find clf_cbf_qp)/plots"/>
     <param name="min_omega"            value="0.0"/>
     <param name="max_omega"            value="838.0"/>
     <param name="static_obstacles"
@@ -45,7 +45,7 @@
 
   <!-- new CLF+APF controller -->
   <node name="clf_afp_iris_controller"
-        pkg="fly_bot"
+        pkg="clf_cbf_qp"
         type="clf_apf.py"
         output="screen">
 

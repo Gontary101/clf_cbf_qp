@@ -1,0 +1,219 @@
+<launch>
+
+    <!-- Gazebo World -->
+    <include file="$(find gazebo_ros)/launch/empty_world.launch">
+        <arg name="world_name" value="$(find rotors_gazebo)/worlds/basic.world"/> <!-- Use a default world or specify yours -->
+        <arg name="paused" value="false"/>
+        <arg name="gui" value="false"/>
+        <arg name="debug" value="false"/>
+        <arg name="verbose" value="false"/>
+    </include>
+
+    <!-- Common Args for XACRO processing -->
+    <arg name="enable_logging"            default="false" />
+    <arg name="enable_ground_truth"       default="true" /> <!-- Usually true for simulation -->
+    <arg name="enable_mavlink_interface"  default="false" /> <!-- Often false for direct control -->
+    <arg name="log_file_base"             default="iris"/> <!-- Base name for logs -->
+    <!-- Add other args if your xacro needs them, e.g., wait_to_record_bag -->
+    <!-- <arg name="wait_to_record_bag"        default="false" /> -->
+    <!-- <arg name="gazebo_snippets_file"      default="$(find clf_cbf_qp)/urdf/iris_addons.gazebo" /> -->
+
+
+    <!-- Common Parameters for Controller -->
+    <arg name="control_rate"              default="100.0" />
+    <arg name="mass"                      default="1.5" />
+    <arg name="gravity"                   default="9.81" />
+    <arg name="I_x"                       default="0.0348" />
+    <arg name="I_y"                       default="0.0459" />
+    <arg name="I_z"                       default="0.0977" />
+    <arg name="motor_constant"            default="8.54858e-06" />
+    <arg name="moment_constant"           default="1.3677728e-07" />
+    <arg name="max_rot_velocity"          default="838.0" />
+    <arg name="min_thrust_factor"         default="0.1" />
+    <arg name="gravity_comp_factor"       default="1.022" />
+    <arg name="max_tilt_angle_deg"        default="60.0" />
+    <arg name="drone_radius"              default="0.5" />
+    <arg name="fixed_yaw_deg"             default="0.0" />
+    <arg name="hover_pos_threshold"       default="0.15" />
+    <arg name="hover_vel_threshold"       default="0.1" />
+    <arg name="hover_stabilization_secs"  default="2.0" />
+    <arg name="traj_end_hover_time"       default="1.0" />
+    <!-- Gains -->
+    <arg name="k_takepos1" default="0.22" /><arg name="k_takepos2" default="0.8" />
+    <arg name="k_takeatt1" default="2.05" /><arg name="k_takeatt2" default="4.1" />
+    <arg name="k_trajpos1" default="1.5" /><arg name="k_trajpos2" default="5.5" />
+    <arg name="k_trajatt1" default="16.0" /><arg name="k_trajatt2" default="32.0" />
+    <!-- ZCBF Params -->
+    <arg name="zcbf_beta"   default="1.5" />
+    <arg name="zcbf_a1"     default="0.5" />
+    <arg name="zcbf_a2"     default="5.0" />
+    <arg name="zcbf_gamma"  default="5.0" />
+    <arg name="zcbf_kappa"  default="18.0" />
+    <arg name="zcbf_order_a" default="0" />
+    <!-- Static Obstacles -->
+    <arg name="static_obstacles_str" default="[]" />
+
+
+    <!-- ─────────────  IRIS 1  ───────────── -->
+    <group ns="iris">
+        <!-- Spawn iris near (30,0,0.1) -->
+        <!-- CORRECTED robot_description command -->
+        <param name="robot_description"
+               command="$(find xacro)/xacro '$(find clf_cbf_qp)/urdf/my_iris.xacro'
+               mav_name:='iris'
+               namespace:='iris'
+               enable_logging:=$(arg enable_logging)
+               enable_ground_truth:=$(arg enable_ground_truth)
+               enable_mavlink_interface:=$(arg enable_mavlink_interface)
+               log_file:='$(arg log_file_base)_1'
+               --inorder"/>
+               <!-- Add other args like wait_to_record_bag or gazebo_snippets_file here if needed by your xacro -->
+
+        <node pkg="gazebo_ros" type="spawn_model" name="spawn_iris"
+              args="-urdf -param robot_description -model iris
+                    -x 30.0 -y 0.0 -z 0.1 -R 0 -P 0 -Y $(arg fixed_yaw_deg)"
+              respawn="false" output="screen"/>
+
+        <!-- Launch Controller for Iris 1 -->
+        <node pkg="clf_cbf_qp" type="zcbf_straight_line.py" 
+              name="clf_iris_trajectory_controller" output="screen">
+
+            <!-- Identification -->
+            <param name="namespace"          value="iris"/>
+            <param name="use_model_states"   value="true"/>
+
+            <!-- Trajectory: Start=(30,0,3), End=(-30,0,3) -->
+            <param name="line_start"         value="[30.0, 0.0, 3.0]"/>
+            <param name="line_end"           value="[-30.0, 0.0, 3.0]"/>
+            <param name="line_duration"      value="40.0"/>
+
+            <!-- Takeoff Target (matches line_start) -->
+            <param name="takeoff_x"          value="30.0"/>
+            <param name="takeoff_y"          value="0.0"/>
+            <param name="takeoff_height"     value="3.0"/>
+
+            <!-- Peer Communication -->
+            <!-- Use param name expected by the script -->
+            <param name="remote_odom_topic"  value="/iris2/ground_truth/odometry"/>
+            <param name="remote_state_topic" value="/iris2/clf_iris2_trajectory_controller/control/state"/>
+            <param name="remote_drone_radius" value="$(arg drone_radius)"/>
+
+            <!-- Common Parameters -->
+            <param name="control_rate"              value="$(arg control_rate)" />
+            <param name="mass"                      value="$(arg mass)" />
+            <param name="gravity"                   value="$(arg gravity)" />
+            <param name="I_x"                       value="$(arg I_x)" />
+            <param name="I_y"                       value="$(arg I_y)" />
+            <param name="I_z"                       value="$(arg I_z)" />
+            <param name="motor_constant"            value="$(arg motor_constant)" />
+            <param name="moment_constant"           value="$(arg moment_constant)" />
+            <param name="max_rot_velocity"          value="$(arg max_rot_velocity)" />
+            <param name="min_thrust_factor"         value="$(arg min_thrust_factor)" />
+            <param name="gravity_comp_factor"       value="$(arg gravity_comp_factor)" />
+            <param name="max_tilt_angle_deg"        value="$(arg max_tilt_angle_deg)" />
+            <param name="drone_radius"              value="$(arg drone_radius)" />
+            <param name="fixed_yaw_deg"             value="$(arg fixed_yaw_deg)" />
+            <param name="hover_pos_threshold"       value="$(arg hover_pos_threshold)" />
+            <param name="hover_vel_threshold"       value="$(arg hover_vel_threshold)" />
+            <param name="hover_stabilization_secs"  value="$(arg hover_stabilization_secs)" />
+            <param name="traj_end_hover_time"       value="$(arg traj_end_hover_time)" />
+            <!-- Gains -->
+            <param name="k_takepos1" value="$(arg k_takepos1)" /><param name="k_takepos2" value="$(arg k_takepos2)" />
+            <param name="k_takeatt1" value="$(arg k_takeatt1)" /><param name="k_takeatt2" value="$(arg k_takeatt2)" />
+            <param name="k_trajpos1" value="$(arg k_trajpos1)" /><param name="k_trajpos2" value="$(arg k_trajpos2)" />
+            <param name="k_trajatt1" value="$(arg k_trajatt1)" /><param name="k_trajatt2" value="$(arg k_trajatt2)" />
+            <!-- ZCBF Params -->
+            <param name="zcbf_beta"   value="$(arg zcbf_beta)" />
+            <param name="zcbf_a1"     value="$(arg zcbf_a1)" />
+            <param name="zcbf_a2"     value="$(arg zcbf_a2)" />
+            <param name="zcbf_gamma"  value="$(arg zcbf_gamma)" />
+            <param name="zcbf_kappa"  value="$(arg zcbf_kappa)" />
+            <param name="zcbf_order_a" value="$(arg zcbf_order_a)" />
+            <!-- Static Obstacles -->
+            <param name="dynamic_obstacles" value="$(arg static_obstacles_str)" />
+
+        </node>
+    </group>
+
+    <!-- ─────────────  IRIS 2  ───────────── -->
+    <group ns="iris2">
+        <!-- Spawn iris2 near (-30,0,0.1) -->
+        <!-- CORRECTED robot_description command -->
+        <param name="robot_description"
+               command="$(find xacro)/xacro '$(find clf_cbf_qp)/urdf/my_iris.xacro'
+               mav_name:='iris2'
+               namespace:='iris2'
+               enable_logging:=$(arg enable_logging)
+               enable_ground_truth:=$(arg enable_ground_truth)
+               enable_mavlink_interface:=$(arg enable_mavlink_interface)
+               log_file:='$(arg log_file_base)_2'
+               --inorder"/>
+               <!-- Add other args like wait_to_record_bag or gazebo_snippets_file here if needed by your xacro -->
+
+        <node pkg="gazebo_ros" type="spawn_model" name="spawn_iris2"
+              args="-urdf -param robot_description -model iris2
+                    -x -30.0 -y 0.0 -z 0.1 -R 0 -P 0 -Y $(arg fixed_yaw_deg)"
+              respawn="false" output="screen"/>
+
+        <!-- Launch Controller for Iris 2 -->
+        <node pkg="clf_cbf_qp" type="zcbf_straight_line.py" 
+              name="clf_iris2_trajectory_controller" output="screen"> <!-- Note different node name -->
+
+            <!-- Identification -->
+            <param name="namespace"          value="iris2"/>
+            <param name="use_model_states"   value="true"/>
+
+            <!-- Trajectory: Start=(-30,0,3), End=(30,0,3) -->
+            <param name="line_start"         value="[-30.0, 0.0, 3.0]"/>
+            <param name="line_end"           value="[30.0, 0.0, 3.0]"/>
+            <param name="line_duration"      value="40.0"/>
+
+            <!-- Takeoff Target (matches line_start) -->
+            <param name="takeoff_x"          value="-30.0"/>
+            <param name="takeoff_y"          value="0.0"/>
+            <param name="takeoff_height"     value="3.0"/>
+
+            <!-- Peer Communication -->
+            <!-- Use param name expected by the script -->
+            <param name="remote_odom_topic"  value="/iris/ground_truth/odometry"/>
+            <param name="remote_state_topic" value="/iris/clf_iris_trajectory_controller/control/state"/>
+            <param name="remote_drone_radius" value="$(arg drone_radius)"/>
+
+            <!-- Common Parameters -->
+            <param name="control_rate"              value="$(arg control_rate)" />
+            <param name="mass"                      value="$(arg mass)" />
+            <param name="gravity"                   value="$(arg gravity)" />
+            <param name="I_x"                       value="$(arg I_x)" />
+            <param name="I_y"                       value="$(arg I_y)" />
+            <param name="I_z"                       value="$(arg I_z)" />
+            <param name="motor_constant"            value="$(arg motor_constant)" />
+            <param name="moment_constant"           value="$(arg moment_constant)" />
+            <param name="max_rot_velocity"          value="$(arg max_rot_velocity)" />
+            <param name="min_thrust_factor"         value="$(arg min_thrust_factor)" />
+            <param name="gravity_comp_factor"       value="$(arg gravity_comp_factor)" />
+            <param name="max_tilt_angle_deg"        value="$(arg max_tilt_angle_deg)" />
+            <param name="drone_radius"              value="$(arg drone_radius)" />
+            <param name="fixed_yaw_deg"             value="$(arg fixed_yaw_deg)" />
+            <param name="hover_pos_threshold"       value="$(arg hover_pos_threshold)" />
+            <param name="hover_vel_threshold"       value="$(arg hover_vel_threshold)" />
+            <param name="hover_stabilization_secs"  value="$(arg hover_stabilization_secs)" />
+            <param name="traj_end_hover_time"       value="$(arg traj_end_hover_time)" />
+            <!-- Gains -->
+            <param name="k_takepos1" value="$(arg k_takepos1)" /><param name="k_takepos2" value="$(arg k_takepos2)" />
+            <param name="k_takeatt1" value="$(arg k_takeatt1)" /><param name="k_takeatt2" value="$(arg k_takeatt2)" />
+            <param name="k_trajpos1" value="$(arg k_trajpos1)" /><param name="k_trajpos2" value="$(arg k_trajpos2)" />
+            <param name="k_trajatt1" value="$(arg k_trajatt1)" /><param name="k_trajatt2" value="$(arg k_trajatt2)" />
+            <!-- ZCBF Params -->
+            <param name="zcbf_beta"   value="$(arg zcbf_beta)" />
+            <param name="zcbf_a1"     value="$(arg zcbf_a1)" />
+            <param name="zcbf_a2"     value="$(arg zcbf_a2)" />
+            <param name="zcbf_gamma"  value="$(arg zcbf_gamma)" />
+            <param name="zcbf_kappa"  value="$(arg zcbf_kappa)" />
+            <param name="zcbf_order_a" value="$(arg zcbf_order_a)" />
+            <!-- Static Obstacles -->
+            <param name="dynamic_obstacles" value="$(arg static_obstacles_str)" />
+
+        </node>
+    </group>
+
+</launch>

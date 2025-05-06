@@ -9,7 +9,7 @@
     <arg name="use_model_states_for_control" default="false"/> <!-- Set true to use /gazebo/model_states, false for /iris/ground_truth/odometry -->
 
     <!-- Include Gazebo simulation environment and spawn the Iris drone -->
-    <include file="$(find fly_bot)/launch/spawn_rotors_iris.launch">
+    <include file="$(find clf_cbf_qp)/launch/spawn_rotors_iris.launch">
         <arg name="namespace" value="$(arg namespace)"/>
         <arg name="world_name" value="$(arg world_name)"/>
         <arg name="paused" value="$(arg paused)"/>
@@ -19,7 +19,7 @@
     </include>
 
  
-    <node name="clf_iris_sequential_controller" pkg="fly_bot" type="clf_position_A_B_iris.py" output="screen">
+    <node name="clf_iris_sequential_controller" pkg="clf_cbf_qp" type="clf_position_A_B_iris.py" output="screen">
         <!-- Common Parameters -->
         <param name="namespace" value="$(arg namespace)" />
         <param name="use_model_states" value="$(arg use_model_states_for_control)" />
@@ -49,7 +49,7 @@
         <param name="waypoint_switch_threshold" value="0.2"/> 
     </node>
 
-    <node name="convergence_plotter_iris" pkg="fly_bot" type="convergence_plotter.py" output="screen">
+    <node name="convergence_plotter_iris" pkg="clf_cbf_qp" type="convergence_plotter.py" output="screen">
 
         <param name="topic" value="/$(arg namespace)/ground_truth/pose" />
 
@@ -58,7 +58,7 @@
         <param name="target_z" value="1.5" />   
 
         <!-- Parameter: Directory to save plots -->
-        <param name="plot_save_dir" value="$(find fly_bot)/plots" />
+        <param name="plot_save_dir" value="$(find clf_cbf_qp)/plots" />
 
         <!-- Parameter: Settling time threshold percentage -->
         <param name="settling_threshold_percent" value="2.0" />

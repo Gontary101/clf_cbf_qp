@@ -12,14 +12,13 @@ pid.py
 kwad.world
 
 # Ignore CMakeLists.txt (case-insensitive)
-CMakeLists.txt
 cmakelists.txt
 
 # Ignore image file
 Image.png
 
 # Ignore ROS package files
-package.xml
+
 
 # Ignore README file (case-insensitive)
 README.md
@@ -38,4 +37,5 @@ smc_position_controller.launch
 smc_position.launch
 obstacles.world
 rotors_obstacle_course_world.world
+dynamic_obstacle_manager.py
 
