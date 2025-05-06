@@ -3,20 +3,17 @@
     <!-- Gazebo World -->
     <include file="$(find gazebo_ros)/launch/empty_world.launch">
         <arg name="world_name" value="$(find rotors_gazebo)/worlds/basic.world"/> <!-- Use a default world or specify yours -->
-        <arg name="paused" value="false"/>
-        <arg name="gui" value="false"/>
+        <arg name="paused" value="true"/>
+        <arg name="gui" value="true"/>
         <arg name="debug" value="false"/>
         <arg name="verbose" value="false"/>
     </include>
 
     <!-- Common Args for XACRO processing -->
     <arg name="enable_logging"            default="false" />
-    <arg name="enable_ground_truth"       default="true" /> <!-- Usually true for simulation -->
-    <arg name="enable_mavlink_interface"  default="false" /> <!-- Often false for direct control -->
-    <arg name="log_file_base"             default="iris"/> <!-- Base name for logs -->
-    <!-- Add other args if your xacro needs them, e.g., wait_to_record_bag -->
-    <!-- <arg name="wait_to_record_bag"        default="false" /> -->
-    <!-- <arg name="gazebo_snippets_file"      default="$(find clf_cbf_qp)/urdf/iris_addons.gazebo" /> -->
+    <arg name="enable_ground_truth"       default="true" /> 
+    <arg name="enable_mavlink_interface"  default="false" /> 
+    <arg name="log_file_base"             default="iris"/> 
 
 
     <!-- Common Parameters for Controller -->
@@ -44,12 +41,13 @@
     <arg name="k_trajpos1" default="1.5" /><arg name="k_trajpos2" default="5.5" />
     <arg name="k_trajatt1" default="16.0" /><arg name="k_trajatt2" default="32.0" />
     <!-- ZCBF Params -->
-    <arg name="zcbf_beta"   default="1.5" />
-    <arg name="zcbf_a1"     default="0.5" />
-    <arg name="zcbf_a2"     default="5.0" />
-    <arg name="zcbf_gamma"  default="5.0" />
-    <arg name="zcbf_kappa"  default="18.0" />
+    <arg name="zcbf_beta"   default="1.0" />
+    <arg name="zcbf_a1"     default="0.2" />
+    <arg name="zcbf_a2"     default="1.5" />
+    <arg name="zcbf_gamma"  default="2.0" />
+    <arg name="zcbf_kappa"  default="3.0" />
     <arg name="zcbf_order_a" default="0" />
+
     <!-- Static Obstacles -->
     <arg name="static_obstacles_str" default="[]" />
 
@@ -67,7 +65,7 @@
                enable_mavlink_interface:=$(arg enable_mavlink_interface)
                log_file:='$(arg log_file_base)_1'
                --inorder"/>
-               <!-- Add other args like wait_to_record_bag or gazebo_snippets_file here if needed by your xacro -->
+
 
         <node pkg="gazebo_ros" type="spawn_model" name="spawn_iris"
               args="-urdf -param robot_description -model iris
@@ -93,7 +91,6 @@
             <param name="takeoff_height"     value="3.0"/>
 
             <!-- Peer Communication -->
-            <!-- Use param name expected by the script -->
             <param name="remote_odom_topic"  value="/iris2/ground_truth/odometry"/>
             <param name="remote_state_topic" value="/iris2/clf_iris2_trajectory_controller/control/state"/>
             <param name="remote_drone_radius" value="$(arg drone_radius)"/>
@@ -148,7 +145,6 @@
                enable_mavlink_interface:=$(arg enable_mavlink_interface)
                log_file:='$(arg log_file_base)_2'
                --inorder"/>
-               <!-- Add other args like wait_to_record_bag or gazebo_snippets_file here if needed by your xacro -->
 
         <node pkg="gazebo_ros" type="spawn_model" name="spawn_iris2"
               args="-urdf -param robot_description -model iris2
@@ -174,7 +170,6 @@
             <param name="takeoff_height"     value="3.0"/>
 
             <!-- Peer Communication -->
-            <!-- Use param name expected by the script -->
             <param name="remote_odom_topic"  value="/iris/ground_truth/odometry"/>
             <param name="remote_state_topic" value="/iris/clf_iris_trajectory_controller/control/state"/>
             <param name="remote_drone_radius" value="$(arg drone_radius)"/>
