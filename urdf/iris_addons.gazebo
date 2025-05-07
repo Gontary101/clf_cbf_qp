@@ -1,39 +1,50 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://ros.org/wiki/xacro">
 
-  <!-- Include the plugin macros -->
-  <xacro:include filename="$(find rotors_description)/urdf/component_snippets.xacro" />
+  <xacro:include filename="$(find rotors_description)/urdf/component_snippets.xacro"/>
 
-  <!-- Wind Plugin -->
-  <!-- 
-       Using the wind_plugin_macro with the following parameters:
-       - namespace:          The robot namespace.
-       - xyz_offset:         Offset of wind force application relative to link origin.
-       - wind_direction:     Mean direction of the wind [x y z].
-       - wind_force_mean:    Mean force of the steady wind [N] (set to 0 if using primarily speed).
-       - wind_speed_mean:    Mean speed of the wind [m/s].
-       - wind_gust_direction:Mean direction of the wind gust [x y z].
-       - wind_gust_duration: Duration of the gust [s].
-       - wind_gust_start:    Start time of the gust [s].
-       - wind_gust_force_mean: Mean force of the gust [N] (the macro uses force for gusts).
-       - use_custom_static_wind_field: Whether to use a custom wind field file (true/false).
-       - custom_wind_field_path: Path to the custom wind field file (relative to ~/.ros).
-  -->
-  <!--
-  <xacro:wind_plugin_macro
-    namespace="${namespace}"
-    xyz_offset="0 0 0"
-    wind_direction="0 0 1"
-    wind_force_mean="0.0"
-    wind_speed_mean="0.0"
-    wind_gust_direction="0 0 1"
-    wind_gust_duration="3.0"
-    wind_gust_start="15.0"
-    wind_gust_force_mean="0.0"
-    use_custom_static_wind_field="false"
-    custom_wind_field_path=""
-  />
-  -->
+  <link name="${namespace}/third_person_camera_link">
+    <inertial>
+      <mass value="0.0000001" />
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="1e-12" ixy="0" ixz="0" iyy="1e-12" iyz="0" izz="1e-12" />
+    </inertial>
+  </link>
+
+  <joint name="${namespace}/third_person_camera_joint" type="fixed">
+    <parent link="${namespace}/base_link"/>
+    <child link="${namespace}/third_person_camera_link"/>
+    <origin xyz="2.0 0 0.6" rpy="0 0 3.14"/>
+  </joint>
+
+  <link name="${namespace}/third_person_camera_optical_frame" />
+  <joint name="${namespace}/third_person_camera_optical_joint" type="fixed">
+    <parent link="${namespace}/third_person_camera_link"/>
+    <child link="${namespace}/third_person_camera_optical_frame"/>
+    <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
+  </joint>
+
+  <gazebo reference="${namespace}/third_person_camera_link">
+    <sensor name="third_person_cam" type="camera">
+      <pose>0 0 0 0 0 0</pose>
+      <update_rate>20.0</update_rate>
+      <camera name="head">
+        <horizontal_fov>1.3962634</horizontal_fov>
+        <image>
+          <width>800</width><height>600</height><format>R8G8B8</format>
+        </image>
+        <clip>
+          <near>0.05</near><far>150</far>
+        </clip>
+      </camera>
+      <plugin name="third_person_cam_plugin" filename="libgazebo_ros_camera.so">
+        <alwaysOn>true</alwaysOn>
+        <cameraName>third_person_cam</cameraName>
+        <imageTopicName>image_raw</imageTopicName>
+        <cameraInfoTopicName>camera_info</cameraInfoTopicName>
+        <frameName>${namespace}/third_person_camera_optical_frame</frameName>
+      </plugin>
+    </sensor>
+  </gazebo>
 
 </robot>
-
