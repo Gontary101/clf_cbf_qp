@@ -7,7 +7,7 @@
   <arg name="verbose"                   default="false"/>
   <arg name="use_model_states_for_control" default="true"/>
 
-  <include file="$(find clf_cbf_qp)/launch/spawn_rotors_iris.launch">
+  <include file="$(find clf_cbf_qp)/launch/spawn_rotors_iris_rev.launch">
     <arg name="namespace" value="$(arg namespace)"/>
     <arg name="world_name" value="$(arg world_name)"/>
     <arg name="paused"     value="$(arg paused)"/>
@@ -17,7 +17,7 @@
     <arg name="x"          value="20.0"/>
     <arg name="y"          value="0.0"/>
     <arg name="z"          value="0.1"/>
-    <arg name="yaw"        value="0.0"/>
+    <arg name="yaw"        value="3.1415926535"/>
   </include>
 
   <node name="clf_iris_trajectory_controller"
@@ -43,7 +43,7 @@
     <param name="helix_height"              value="30.0"/>
     <param name="helix_laps"                value="4.0"/>
     <param name="trajectory_omega"          value="0.08"/>
-    <param name="fixed_yaw_deg"             value="0.0"/>
+    <param name="fixed_yaw_deg"             value="180"/>
 
     <param name="hover_pos_threshold"       value="0.15"/>
     <param name="hover_vel_threshold"       value="0.1"/>

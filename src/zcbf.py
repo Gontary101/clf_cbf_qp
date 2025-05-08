@@ -191,45 +191,27 @@ class ClfIrisController(object):
              c(phi)*c(th)]
         ])
 
-    def traj_ref(self, t):
-        omt = self.omega_traj * t            # θ = ωt
-        r   = self.r0 - self.k_r * omt       # instantaneous radius
-        z   = self.k_z * omt                 # height
-
-        # ––– position –––
-        c, s  = math.cos, math.sin
-        x_rel = r * c(omt)
-        y_rel = r * s(omt)
-        pos   = np.array([x_rel, y_rel, z])
+    def traj_ref(self,t):
+        omt = self.omega_traj*t
+        r   = self.r0 - self.k_r*omt
+        z   = self.k_z*omt
+        c,s = math.cos, math.sin
+        x_rel = r*c(omt)
+        y_rel = r*s(omt)
+        pos    = np.array([x_rel,y_rel,z])
         if self.xy_offset is not None:
             pos[0:2] += self.xy_offset
         if self.z_offset is not None:
-            pos[2]  += self.z_offset
-
-        # ––– first derivative (velocity) –––
+            pos[2]   += self.z_offset
         dr  = -self.k_r
-        xp  = dr * c(omt) - r * s(omt)
-        yp  = dr * s(omt) + r * c(omt)
+        xp  = dr*c(omt) - r*s(omt)
+        yp  = dr*s(omt) + r*c(omt)
         zp  = self.k_z
-        vel = np.array([xp, yp, zp]) * self.omega_traj
-
-        # ––– second derivative (acceleration) –––
-        a0  = 2* self.k_r * s(omt) - r * c(omt)
-        a1  = -2*self.k_r * c(omt) - r * s(omt)
-        acc = np.array([a0, a1, 0.0]) * (self.omega_traj ** 2)
-
-        # ––– desired yaw: heading of the velocity vector + optional offset –––
-        yaw = math.atan2(vel[1], vel[0]) + self.yaw_offset
-
-        #   yaw‑rate  ψ̇  =  (vx*ay − vy*ax) / (vx² + vy²)
-        vxy2 = vel[0]**2 + vel[1]**2
-        if vxy2 > 1e-6:
-            yaw_rate = (vel[0]*acc[1] - vel[1]*acc[0]) / vxy2
-        else:
-            yaw_rate = 0.0
-
-        return pos, vel, acc, yaw, yaw_rate
-
+        vel = np.array([xp,yp,zp]) * self.omega_traj
+        a0  =  2*self.k_r*s(omt) - r*c(omt)
+        a1  = -2*self.k_r*c(omt) - r*s(omt)
+        acc = np.array([a0,a1,0.0]) * (self.omega_traj**2)
+        return pos, vel, acc, self.yaw_fix, 0.0
 
     def loop(self,_):
         if self.last is None: return
@@ -350,7 +332,7 @@ class ClfIrisController(object):
 
         U_nom = np.array([U1_nom, U2_nom, U3_nom, U4_nom])
         U = U_nom.copy()
-        #ici commence le ZCBF
+
         if self.state == State.TRAJ and self.obs.size > 0:
             G_cbf_list = []
             h_cbf_list = []

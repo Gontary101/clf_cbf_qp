@@ -36,6 +36,8 @@ class Plotter(object):
         self.fw_t,self.fp_t = pget("filter_window_thrust",31),pget("filter_polyorder_thrust",3)
         self.use_filt= pget("use_filtering",True)
         self.run_T   = pget("run_duration_secs",250.0)
+        self.takeoff_duration = pget("takeoff_duration", 5.0)  # Duration of takeoff phase in seconds
+        self.hover_duration = pget("hover_duration", 5.0)      # Duration of hover phase in seconds
 
         self.r0      = 0.5*self.d_start
         theta_tot   = self.laps*2.0*math.pi
@@ -285,11 +287,31 @@ class Plotter(object):
             W=np.sqrt(np.maximum(np.stack(self.data['w']),0))
             if self.use_filt and W.shape[0]>=self.fw_w:
                 for i in range(W.shape[1]):W[:,i]=FILT(W[:,i],self.fw_w,self.fp_w)
+            
             plt.figure(figsize=(12,6))
-            for i in range(W.shape[1]):plt.plot(Tw,W[:,i],label='M'+str(i+1))
-            plt.ylim(*self.w_lim);plt.xlabel('t (s)');plt.ylabel('ω (rad/s)')
-            plt.legend();plt.grid()
-            plt.savefig(base+"_omega.png");plt.close()
+            # Plot actual omega data for all phases
+            for i in range(W.shape[1]):
+                plt.plot(Tw, W[:,i], label='M'+str(i+1))
+            
+            plt.ylim(*self.w_lim)
+            plt.xlabel('t (s)')
+            plt.ylabel('ω (rad/s)')
+            plt.grid()
+            
+            # Add phase background spans
+            takeoff_end = self.takeoff_duration
+            hover_end = takeoff_end + self.hover_duration
+            plt.axvspan(0, takeoff_end, color='green', alpha=0.1, label='Takeoff Phase')
+            plt.axvspan(takeoff_end, hover_end, color='yellow', alpha=0.1, label='Hover Phase')
+            plt.axvspan(hover_end, max(Tw), color='blue', alpha=0.1, label='Trajectory Phase')
+            
+            # Only show unique labels in legend
+            handles, labels = plt.gca().get_legend_handles_labels()
+            by_label = dict(zip(labels, handles))
+            plt.legend(by_label.values(), by_label.keys())
+            
+            plt.savefig(base+"_omega.png")
+            plt.close()
 
         if self.data['u_t']:
             Tu = np.array(self.data['u_t']) - self.t0.to_sec()

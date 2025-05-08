@@ -23,7 +23,7 @@
     <!-- Start Gazebo with the specified world -->
     <include file="$(find gazebo_ros)/launch/empty_world.launch">
         <!-- Use a world from rotors_gazebo for consistency -->
-        <arg name="world_name" value="$(find rotors_gazebo)/worlds/basic.world"/>
+        <arg name="world_name" value="$(find clf_cbf_qp)/worlds/helix.world"/>
         <!-- This line correctly passes the paused argument value -->
         <arg name="paused" value="$(arg paused)"/>
         <arg name="gui" value="$(arg gui)"/>
@@ -46,10 +46,10 @@
 
     <!-- Spawn the robot model from the Parameter Server into Gazebo -->
     <node name="spawn_$(arg namespace)" pkg="gazebo_ros" type="spawn_model"
-          args="-urdf -param robot_description -model $(arg namespace)
-                -x 0 -y 0 -z 0.1
-                -R 0 -P 0 -Y 0"
-          respawn="false" output="screen" />
+      args="-urdf -param robot_description -model $(arg namespace)
+            -x $(arg x) -y $(arg y) -z $(arg z)
+            -R 0 -P 0 -Y $(arg yaw)"
+      respawn="false" output="screen" />
           <!-- REMOVED '-unpause $(arg paused)' from here -->
           <node name="unpause_gazebo" pkg="rosservice" type="rosservice"
           args="call /gazebo/unpause_physics"

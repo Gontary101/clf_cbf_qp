@@ -7,7 +7,7 @@
   <arg name="verbose"                   default="false"/>
   <!-- Removed unused arg: use_model_states_for_control -->
 
-  <include file="$(find clf_cbf_qp)/launch/spawn_rotors_iris.launch">
+  <include file="$(find clf_cbf_qp)/launch/spawn_rotors_iris_rev.launch">
     <arg name="namespace" value="$(arg namespace)"/>
     <arg name="world_name" value="$(arg world_name)"/>
     <arg name="paused"     value="$(arg paused)"/>
@@ -17,7 +17,7 @@
     <arg name="x"          value="20.0"/> <!-- Initial X position matches takeoff_x -->
     <arg name="y"          value="0.0"/>
     <arg name="z"          value="0.1"/>
-    <arg name="yaw"        value="0.0"/>
+    <arg name="yaw"        value="3.1415926535"/>
   </include>
 
 
@@ -46,7 +46,7 @@
   </node>
 
   <!-- Launch the new Full Dynamics ZCBF Controller Node -->
-  <node pkg="clf_cbf_qp" type="zcbf.py"
+  <node pkg="clf_cbf_qp" type="zcbf_inv.py"
         name="clf_iris_trajectory_controller" output="screen"> <!-- Keep name consistent -->
 
     <!-- General Parameters -->
@@ -74,7 +74,7 @@
     <param name="helix_height" value="30.0" />
     <param name="helix_laps" value="4.0" />
     <param name="trajectory_omega" value="0.07" />
-    <param name="fixed_yaw_deg" value="0.0" />
+    <param name="fixed_yaw_deg" value="180" />
 
     <!-- Takeoff/Hover Parameters -->
     <param name="takeoff_x" value="20.0" /> 
@@ -86,7 +86,7 @@
 
     <!-- Takeoff Gains -->
     <param name="k_takepos1" value="0.22" />
-    <param name="k_takepos2" value="0.8" />
+    <param name="k_takepos2" value="0.4" />
     <param name="k_takeatt1" value="2.05" />
     <param name="k_takeatt2" value="4.1" />
     <!-- Trajectory Gains -->

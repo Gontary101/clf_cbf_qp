@@ -14,7 +14,7 @@
   <joint name="${namespace}/third_person_camera_joint" type="fixed">
     <parent link="${namespace}/base_link"/>
     <child link="${namespace}/third_person_camera_link"/>
-    <origin xyz="2.0 0 0.6" rpy="0 0 3.14"/>
+    <origin xyz="-2.0 0 0.6" rpy="0 0 0"/>
   </joint>
 
   <link name="${namespace}/third_person_camera_optical_frame" />
