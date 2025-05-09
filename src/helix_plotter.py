@@ -2,9 +2,39 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 from __future__ import division
+
+# **MUST** call XInitThreads at the VERY beginning before ANY other imports:
+import ctypes
+ctypes.CDLL('libX11.so', ctypes.RTLD_GLOBAL).XInitThreads()
+
 import rospy, os, math, datetime, numpy as np
-import matplotlib; matplotlib.use('Agg')
+import matplotlib
+# Use non-interactive backend by default to avoid X11 issues
+matplotlib.use('agg')
 import matplotlib.pyplot as plt
+import matplotlib.widgets as mwidgets
+import signal, tempfile, pickle
+try:
+    _orig_press   = mwidgets.SpanSelector.on_key_press
+    _orig_release = mwidgets.SpanSelector.on_key_release
+
+    def _safe_on_key_press(self, event):
+        try:
+            return _orig_press(self, event)
+        except UnicodeDecodeError:
+            return  # drop any non-ASCII key
+
+    def _safe_on_key_release(self, event):
+        try:
+            return _orig_release(self, event)
+        except UnicodeDecodeError:
+            return
+
+    mwidgets.SpanSelector.on_key_press   = _safe_on_key_press
+    mwidgets.SpanSelector.on_key_release = _safe_on_key_release
+except Exception:
+    pass
+from matplotlib.widgets import SpanSelector
 from scipy.signal import savgol_filter
 from nav_msgs.msg import Odometry
 from std_msgs.msg import Float64MultiArray, String
@@ -76,7 +106,9 @@ class Plotter(object):
         rospy.Subscriber(self.topics['odom'],   Odometry,          self.cb_odom,   queue_size=200)
         rospy.Subscriber(self.topics['omega'],  Float64MultiArray, self.cb_omega,  queue_size=200)
         rospy.Subscriber(self.topics['thrust'], Float64MultiArray, self.cb_thrust, queue_size=200)
-        rospy.on_shutdown(self.shutdown)
+        # we will call shutdown() ourselves, so that the window
+        # outlives any other node crashing
+        # rospy.on_shutdown(self.shutdown)
         rospy.loginfo("Trajectory Plotter ready - waiting for TRAJECTORY phase.")
 
     def cb_state(self,msg):
@@ -153,6 +185,12 @@ class Plotter(object):
         if self.t0 is None or not self.data['t']:
             rospy.logwarn("No data captured - nothing to plot."); return
 
+        # Ensure matplotlib and plt are properly imported
+        import matplotlib
+        matplotlib.use('agg')  # Use non-interactive backend for static plots
+        import matplotlib.pyplot as plt
+        from mpl_toolkits.mplot3d import Axes3D
+
         t   = np.array(self.data['t'])
         X,Y,Z = map(np.array,(self.data['x'],self.data['y'],self.data['z']))
         Vx,Vy,Vz = map(np.array,(self.data['vx'],self.data['vy'],self.data['vz']))
@@ -193,10 +231,9 @@ class Plotter(object):
         ax3.set_xlabel('t (s)');fig.tight_layout()
         plt.savefig(base+"_vel_track.png");plt.close()
 
-        from mpl_toolkits.mplot3d import Axes3D
         fig3d=plt.figure(figsize=(8,8));ax3d=fig3d.add_subplot(111,projection='3d')
 
-        min_x_3d, max_x_3d = np.min(np.concatenate((X, Pd[:,0]))), np.max(np.concatenate((X, Pd[:,0])))
+        min_x_3d, max_x_3d = np.min(np.concatenate((X, Pd[:,0]))), np.max(np.concatenate((X , Pd[:,0])))
         min_y_3d, max_y_3d = np.min(np.concatenate((Y, Pd[:,1]))), np.max(np.concatenate((Y, Pd[:,1])))
         min_z_3d, max_z_3d = np.min(np.concatenate((Z, Pd[:,2]))), np.max(np.concatenate((Z, Pd[:,2])))
 
@@ -224,7 +261,11 @@ class Plotter(object):
 
         ax3d.plot(X,Y,Z,'b-',label='Actual Trajectory');
         ax3d.plot(Pd[:,0],Pd[:,1],Pd[:,2],'r--',label='Desired Trajectory')
-        ax3d.set_xlabel('X');ax3d.set_ylabel('Y');ax3d.set_zlabel('Z');ax3d.grid(); ax3d.legend()
+        # Add starting position marker (red cross)
+        ax3d.scatter(X[0], Y[0], Z[0], c='red', marker='x', s=100, linewidth=3, label='Starting position')
+        # Add ending position marker (green cross)
+        ax3d.scatter(X[-1], Y[-1], Z[-1], c='green', marker='x', s=100, linewidth=3, label='Ending position')
+        ax3d.set_xlabel('X (m)');ax3d.set_ylabel('Y (m)');ax3d.set_zlabel('Z (m)');ax3d.grid(); ax3d.legend()
 
         range_x_3d = max_x_3d - min_x_3d
         range_y_3d = max_y_3d - min_y_3d
@@ -263,6 +304,10 @@ class Plotter(object):
 
         ax2d.plot(X, Y, 'b-', label='Actual Trajectory')
         ax2d.plot(Pd[:, 0], Pd[:, 1], 'r--', label='Desired Trajectory')
+        # Add starting position marker (red cross)
+        ax2d.scatter(X[0], Y[0], c='red', marker='x', s=100, linewidth=3, label='Starting position')
+        # Add ending position marker (green cross)
+        ax2d.scatter(X[-1], Y[-1], c='green', marker='x', s=100, linewidth=3, label='Ending position')
 
         ax2d.set_xlabel('X (m)'); ax2d.set_ylabel('Y (m)')
         ax2d.set_title('Top-Down Trajectory View')
@@ -288,30 +333,139 @@ class Plotter(object):
             if self.use_filt and W.shape[0]>=self.fw_w:
                 for i in range(W.shape[1]):W[:,i]=FILT(W[:,i],self.fw_w,self.fp_w)
             
-            plt.figure(figsize=(12,6))
-            # Plot actual omega data for all phases
+            # Create figure with non-interactive backend for saving
+            fig, ax = plt.subplots(figsize=(12,6))
             for i in range(W.shape[1]):
-                plt.plot(Tw, W[:,i], label='M'+str(i+1))
+                ax.plot(Tw, W[:,i], label='M'+str(i+1))
             
-            plt.ylim(*self.w_lim)
-            plt.xlabel('t (s)')
-            plt.ylabel('ω (rad/s)')
-            plt.grid()
+            ax.set_ylim(*self.w_lim)
+            ax.set_xlabel('t (s)')
+            ax.set_ylabel('omega (rad/s)')
+            ax.grid(True)
             
-            # Add phase background spans
             takeoff_end = self.takeoff_duration
             hover_end = takeoff_end + self.hover_duration
-            plt.axvspan(0, takeoff_end, color='green', alpha=0.1, label='Takeoff Phase')
-            plt.axvspan(takeoff_end, hover_end, color='yellow', alpha=0.1, label='Hover Phase')
-            plt.axvspan(hover_end, max(Tw), color='blue', alpha=0.1, label='Trajectory Phase')
+            ax.axvspan(0, takeoff_end, color='green',  alpha=0.1, label='Takeoff Phase')
+            ax.axvspan(takeoff_end, hover_end, color='yellow', alpha=0.1, label='Hover Phase')
+            ax.axvspan(hover_end, max(Tw), color='blue', alpha=0.1, label='Trajectory Phase')
             
-            # Only show unique labels in legend
-            handles, labels = plt.gca().get_legend_handles_labels()
+            handles, labels = ax.get_legend_handles_labels()
             by_label = dict(zip(labels, handles))
-            plt.legend(by_label.values(), by_label.keys())
+            ax.legend(by_label.values(), by_label.keys())
             
-            plt.savefig(base+"_omega.png")
-            plt.close()
+            # Save the non-interactive version
+            plt.savefig(base + "_omega.png")
+            plt.close(fig)
+            
+            # Create a temporary Python script for interactive plotting with TkAgg backend
+            fd, script_path = tempfile.mkstemp(suffix='.py')
+            with os.fdopen(fd, 'w') as f:
+                f.write('''#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+import numpy as np
+import matplotlib
+matplotlib.use('TkAgg')  # Use TkAgg for interactive plotting
+import matplotlib.pyplot as plt
+from matplotlib.widgets import SpanSelector
+import signal
+import os
+import sys
+import pickle
+
+# Load data from pickle file
+with open(sys.argv[1], 'rb') as f:
+    data = pickle.load(f)
+    
+Tw = data['Tw']
+W = data['W']
+w_lim = data['w_lim']
+takeoff_duration = data['takeoff_duration']
+hover_duration = data['hover_duration']
+
+# Create interactive plot
+fig, ax = plt.subplots(figsize=(12,6))
+for i in range(W.shape[1]):
+    ax.plot(Tw, W[:,i], label='M'+str(i+1))
+
+ax.set_ylim(*w_lim)
+ax.set_xlabel('t (s)')
+ax.set_ylabel('omega (rad/s)')
+ax.grid(True)
+
+takeoff_end = takeoff_duration
+hover_end = takeoff_end + hover_duration
+ax.axvspan(0, takeoff_end, color='green',  alpha=0.1, label='Takeoff Phase')
+ax.axvspan(takeoff_end, hover_end, color='yellow', alpha=0.1, label='Hover Phase')
+ax.axvspan(hover_end, max(Tw), color='blue', alpha=0.1, label='Trajectory Phase')
+
+handles, labels = ax.get_legend_handles_labels()
+by_label = dict(zip(labels, handles))
+ax.legend(by_label.values(), by_label.keys())
+
+def onselect(xmin, xmax):
+    # skip zero-width spans (prevents singular x-lim warnings)
+    if abs(xmax - xmin) < 1e-6:
+        return
+    lo, hi = sorted((xmin, xmax))
+    ax.set_xlim(lo, hi)
+    fig.canvas.draw_idle()
+
+# horizontal drag to zoom
+span = SpanSelector(ax, onselect, 'horizontal',
+                    useblit=True,
+                    rectprops=dict(alpha=0.3, facecolor='orange'))
+
+# Ignore signals that might interrupt the plot
+for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+    signal.signal(sig, signal.SIG_IGN)
+
+plt.show()
+''')
+            os.chmod(script_path, 0o755)
+            
+            # Save data to pickle file
+            fd, data_path = tempfile.mkstemp(suffix='.pkl')
+            os.close(fd)
+            plot_data = {
+                'Tw': Tw,
+                'W': W,
+                'w_lim': self.w_lim,
+                'takeoff_duration': self.takeoff_duration,
+                'hover_duration': self.hover_duration
+            }
+            with open(data_path, 'wb') as f:
+                pickle.dump(plot_data, f)
+            
+            # before we show, ignore the Ctrl-C / SIGTERM from roslaunch
+            for sig in (signal.SIGINT, signal.SIGTERM):
+                signal.signal(sig, signal.SIG_IGN)
+
+            # == DETACH & SHOW in a new session ==
+            # Double-fork so this plt.show() lives in its own process group
+            try:
+                pid = os.fork()
+                if pid > 0:
+                    # parent returns immediately and will be killed by roslaunch
+                    return
+            except OSError:
+                pass
+
+            # first child: become session leader
+            os.setsid()
+            try:
+                pid2 = os.fork()
+                if pid2 > 0:
+                    # intermediate child exits
+                    os._exit(0)
+            except OSError:
+                pass
+
+            # grandchild: truly detached, ignore kill signals
+            for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+                signal.signal(sig, signal.SIG_IGN)
+
+            # Execute the interactive plot script
+            os.execl(script_path, script_path, data_path)
 
         if self.data['u_t']:
             Tu = np.array(self.data['u_t']) - self.t0.to_sec()
@@ -363,4 +517,16 @@ class Plotter(object):
 
 if __name__=="__main__":
     rospy.init_node("trajectory_plotter_node",anonymous=True)
-    Plotter(); rospy.spin()
+    plotter = Plotter()
+
+    # keep looping until data collection is done (or ROS shuts down)
+    rate = rospy.Rate(10)
+    try:
+        while not plotter.done:
+            rate.sleep()
+    except rospy.exceptions.ROSInterruptException:
+        # ROS is shutting down; just continue to plotting
+        pass
+
+    # now that we're out of the loop, bring up the interactive plot
+    plotter.shutdown()

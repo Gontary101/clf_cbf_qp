@@ -17,7 +17,7 @@
     <arg name="x"          value="20.0"/> <!-- Initial X position matches takeoff_x -->
     <arg name="y"          value="0.0"/>
     <arg name="z"          value="0.1"/>
-    <arg name="yaw"        value="3.1415926535"/>
+    <arg name="yaw"        value="1.57079633"/>
   </include>
 
 
@@ -52,7 +52,7 @@
     <!-- General Parameters -->
     <param name="namespace" value="$(arg namespace)" />
     <param name="use_model_states" value="true" /> <!-- Set true if using Gazebo ModelStates, false for /ground_truth/odometry -->
-    <param name="control_rate" value="100.0" />
+    <param name="control_rate" value="480.0" />
 
     <!-- Drone Physical Properties -->
     <param name="mass" value="1.5" />
@@ -74,26 +74,26 @@
     <param name="helix_height" value="30.0" />
     <param name="helix_laps" value="4.0" />
     <param name="trajectory_omega" value="0.07" />
-    <param name="fixed_yaw_deg" value="180" />
+    <param name="fixed_yaw_deg" value="90" />
 
     <!-- Takeoff/Hover Parameters -->
     <param name="takeoff_x" value="20.0" /> 
     <param name="takeoff_y" value="0.0" />  
     <param name="takeoff_height" value="3.0" />
-    <param name="hover_pos_threshold" value="0.15" />
-    <param name="hover_vel_threshold" value="0.1" />
-    <param name="hover_stabilization_secs" value="2.0" />
+    <param name="hover_pos_threshold" value="0.25" />
+    <param name="hover_vel_threshold" value="0.25" />
+    <param name="hover_stabilization_secs" value="1.0" />
 
     <!-- Takeoff Gains -->
-    <param name="k_takepos1" value="0.22" />
-    <param name="k_takepos2" value="0.4" />
+    <param name="k_takepos1" value="0.12" />
+    <param name="k_takepos2" value="0.25" />
     <param name="k_takeatt1" value="2.05" />
     <param name="k_takeatt2" value="4.1" />
     <!-- Trajectory Gains -->
-    <param name="k_trajpos1" value="1.5" />
-    <param name="k_trajpos2" value="5.5" />
-    <param name="k_trajatt1" value="16.0" />
-    <param name="k_trajatt2" value="32.0" />
+    <param name="k_trajpos1" value="1.2" />
+    <param name="k_trajpos2" value="5.0" />
+    <param name="k_trajatt1" value="8.0" />
+    <param name="k_trajatt2" value="16.0" />
 
     <!-- Obstacle Definitions -->
     
@@ -102,10 +102,10 @@
 
     <!-- (ZCBF) Parameters -->
     <param name="zcbf_beta"   value="1.0" />    
-    <param name="zcbf_a1"     value="0.2" />    
+    <param name="zcbf_a1"     value="0.5" />    
     <param name="zcbf_a2"     value="1.0" />   
-    <param name="zcbf_gamma"  value="2.4" />    
-    <param name="zcbf_kappa"  value="1.0" />   
+    <param name="zcbf_gamma"  value="2.8" />    
+    <param name="zcbf_kappa"  value="0.8" />   
     <param name="zcbf_order_a" value="0" />    
 
 

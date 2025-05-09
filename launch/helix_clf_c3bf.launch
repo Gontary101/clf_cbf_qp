@@ -24,7 +24,9 @@
   <node name="trajectory_plotter_node"
         pkg="clf_cbf_qp"
         type="helix_plotter.py"
-        output="screen">
+        output="screen"
+        required="false">
+        
     <param name="odom_topic"                value="/$(arg namespace)/ground_truth/odometry"/>
     <param name="omega_sq_topic"            value="/clf_iris_trajectory_controller/control/omega_sq"/>
     <param name="thrust_topic"              value="/clf_iris_trajectory_controller/control/U"/>
@@ -46,7 +48,7 @@
 
     <!-- Provided Parameters -->
     <param name="dynamic_obstacles"
-            value="[[-8.96, -15.52, 8.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], [-7.92, 13.71, 13.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], [-5.83, -10.1, 23.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], [-4.79, 8.3, 28.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], [-0.026, 19.6, 4.875, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], [-4.8, 17.093, 5.248, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]]" /> 
+            value="[[-8.96, -15.52, 8.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], [-7.92, 13.71, 13.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0],[13.75, 0.00, 18.00,0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.00], [-5.83, -10.1, 23.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], [-4.79, 8.3, 28.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], [-0.026, 19.6, 4.875, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], [-4.8, 17.093, 5.248, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]]" /> 
     
 
     <!-- Added Parameters (with defaults from script if not specified) -->
@@ -95,14 +97,14 @@
     <param name="k_takeatt1" value="2.05" />
     <param name="k_takeatt2" value="4.1" />
     <!-- Trajectory Gains -->
-    <param name="k_trajpos1" value="1.5" />
-    <param name="k_trajpos2" value="5.5" />
-    <param name="k_trajatt1" value="10.0" />
-    <param name="k_trajatt2" value="15.0" />
+    <param name="k_trajpos1" value="1.2" />
+    <param name="k_trajpos2" value="5.0" />
+    <param name="k_trajatt1" value="8.0" />
+    <param name="k_trajatt2" value="16.0" />
 
     <!-- CBF Parameters -->
-    <param name="cbf_gamma" value="50.0"/>
-    <param name="drone_radius" value="0.8" />
+    <param name="cbf_gamma" value="400.0"/>
+    <param name="drone_radius" value="0.5" />
 
     <!-- Control Loop Rate -->
     <param name="control_rate" value="480.0" />
