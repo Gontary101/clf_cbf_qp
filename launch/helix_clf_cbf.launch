@@ -7,7 +7,7 @@
   <arg name="verbose"                   default="false"/>
   <arg name="use_model_states_for_control" default="true"/>
 
-  <include file="$(find clf_cbf_qp)/launch/spawn_rotors_iris.launch">
+  <include file="$(find clf_cbf_qp)/launch/spawn_rotors_iris_rev.launch">
     <arg name="namespace" value="$(arg namespace)"/>
     <arg name="world_name" value="$(arg world_name)"/>
     <arg name="paused"     value="$(arg paused)"/>
@@ -17,7 +17,7 @@
     <arg name="x"          value="20.0"/>
     <arg name="y"          value="0.0"/>
     <arg name="z"          value="0.1"/>
-    <arg name="yaw"        value="0.0"/>
+    <arg name="yaw"        value="3.1415926535"/>
   </include>
 
 
@@ -41,12 +41,12 @@
     <param name="static_obstacles"
            value="[ [-8.96, -15.52, 8.00, 1.00], [-7.92, 13.71, 13.00, 1.00], [13.75, 0.00, 18.00, 1.00], [-5.83, -10.10, 23.00, 1.00], [-4.79, 8.30, 28.00, 1.00],  [-0.026 ,19.60 ,4.875, 1.00], [-4.8, 17.093 ,5.248, 1.00] ]" />
   </node>
-<node pkg="clf_cbf_qp" type="clf_ecbf_full_dynamics_forms.py"
+<node pkg="clf_cbf_qp" type="main.py"
         name="clf_iris_trajectory_controller" output="screen">
 
     <!-- Provided Parameters -->
-    <param name="static_obstacles"
-           value="[ [-8.96, -15.52, 8.00, 1.00], [-7.92, 13.71, 13.00, 1.00], [13.75, 0.00, 18.00, 1.00], [-5.83, -10.10, 23.00, 1.00], [-4.79, 8.30, 28.00, 1.00],  [-0.026 ,19.60 ,4.875, 1.00], [-4.8, 17.093 ,5.248, 1.00] ]" />
+    <param name="dynamic_obstacles"
+            value="[[-8.96, -15.52, 8.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], [-7.92, 13.71, 13.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], [-5.83, -10.1, 23.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], [-4.79, 8.3, 28.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], [-0.026, 19.6, 4.875, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], [-4.8, 17.093, 5.248, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]]" /> 
     <param name="drone_radius" value="0.5" />
 
     <!-- Added Parameters (with defaults from script if not specified) -->
@@ -72,7 +72,7 @@
     <param name="helix_height" value="30.0" />
     <param name="helix_laps" value="4.0" />
     <param name="trajectory_omega" value="0.1" />
-    <param name="fixed_yaw_deg" value="0.0" />
+    <param name="fixed_yaw_deg" value="180.0" />
 
     <!-- Takeoff/Hover Parameters -->
     <!-- Default takeoff_x is 0.5 * helix_start_diameter = 20.0 -->
@@ -86,7 +86,7 @@
     <!-- Controller Gains -->
     <!-- Takeoff Gains -->
     <param name="k_takepos1" value="0.22" />
-    <param name="k_takepos2" value="0.8" />
+    <param name="k_takepos2" value="0.4" />
     <param name="k_takeatt1" value="2.05" />
     <param name="k_takeatt2" value="4.1" />
     <!-- Trajectory Gains -->

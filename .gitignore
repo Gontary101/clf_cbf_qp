@@ -43,3 +43,9 @@ zcbf_and_yaw_a.launch
 straight_line_plotter.py
 zcbf_and_yaw.py
 zcbf_and_yaw_a.py
+
+C3BF_filter.pyc
+clf_backstepping.pyc
+dynamics_utils.pyc
+ecbf_forms_filter.pyc
+zcbf_filter.pyc

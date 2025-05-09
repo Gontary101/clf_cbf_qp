@@ -46,7 +46,7 @@
   </node>
 
   <!-- Launch the new Full Dynamics ZCBF Controller Node -->
-  <node pkg="clf_cbf_qp" type="zcbf_inv.py"
+  <node pkg="clf_cbf_qp" type="main.py"
         name="clf_iris_trajectory_controller" output="screen"> <!-- Keep name consistent -->
 
     <!-- General Parameters -->
