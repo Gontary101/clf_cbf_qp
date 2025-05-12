@@ -25,7 +25,7 @@ solvers.options['show_progress'] = False
 
 # ---------------------------------------------------------------------------
 
-EPS = 1e-4          # tiny number to avoid division by zero
+EPS = 1e-2          # tiny number to avoid division by zero
 clip = np.clip
 rt   = np.sqrt
 dot  = np.dot
@@ -103,7 +103,7 @@ class C3BFFilter(object):
 
             d2    = dot(p_rel, p_rel)
             d     = rt(d2)
-            if d <= r_s -0.8 + EPS:            # too close – skip, nothing helps
+            if d <= r_s + EPS:         
                 h_dbg.append(-999.0)
                 continue
 

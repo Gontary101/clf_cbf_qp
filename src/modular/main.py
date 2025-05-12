@@ -8,14 +8,14 @@ from mav_msgs.msg import Actuators
 from geometry_msgs.msg import Point, Vector3
 from std_msgs.msg import Float64MultiArray, String
 from tf.transformations import euler_from_quaternion
-
+from trajectory.helix import HelixTrajectory
 # --- local helpers -----------------------------------------------------------
 import dynamics_utils as dyn
-from dynamics_utils import pget, rotation_matrix # pget is used by this file too
+from dynamics_utils import pget, rotation_matrix 
 from clf_backstepping import CLFBackstepping
-#from zcbf_filter     import ZCBFFilter as SAFETYFilter
-#from ecbf_forms_filter import ECBFFormsFilter as SAFETYFilter
-from C3BF_filter import C3BFFilter as SAFETYFilter
+#from obstacle_avoidance.zcbf_filter     import ZCBFFilter as SAFETYFilter
+#from obstacle_avoidance.ecbf_forms_filter import ECBFFormsFilter as SAFETYFilter
+from obstacle_avoidance.C3BF_filter import C3BFFilter as SAFETYFilter
 
 LOG_T = 1.0     # seconds between throttled debug prints
 DBG   = True    # set False to silence controller‑side logs
@@ -29,7 +29,7 @@ class State(Enum):
     IDLE    = 5
 
 
-class ZCBFInvController(object):
+class Controller(object):
     """Top‑level node that glues together dynamics, CLF tracking and ZCBF CSFs."""
 
     # ------------------------------------------------------------------ init -
@@ -42,21 +42,14 @@ class ZCBFInvController(object):
         # ------------- quadrotor model --------------------------------------
         self.model  = dyn.DroneModel()
 
-        # ------------- helix trajectory -------------------------------------
-        self.d_start    = pget("helix_start_diameter", 40.0)
-        self.d_end      = pget("helix_end_diameter",   15.0)
-        self.height     = pget("helix_height",         30.0)
-        self.laps       = pget("helix_laps",           4.0)
-        self.omega_traj = pget("trajectory_omega",     0.07) # Will be overridden by launch file
-        self.yaw_fix    = math.radians(pget("fixed_yaw_deg", 0.0)) # Will be overridden
-
-        self.r0   = 0.5 * self.d_start
-        theta_tot = self.laps * 2.0 * math.pi
-        self.k_r  = (self.r0 - 0.5 * self.d_end) / theta_tot
-        self.k_z  = self.height / theta_tot
+        # ------------- trajectory selection -----------------------------------
+        # instantiate helix; later you can swap in other trajectory classes
+        self.trajectory   = HelixTrajectory()
+        self.omega_traj   = self.trajectory.omega
+        self.yaw_fix      = self.trajectory.yaw_fix
 
         # ------------- take‑off / hover goal --------------------------------
-        self.x_to = pget("takeoff_x",      self.r0) # Will be overridden
+        self.x_to = pget("takeoff_x",      self.trajectory.r0) # Will be overridden
         self.y_to = pget("takeoff_y",      0.0)
         self.z_to = pget("takeoff_height", 3.0)
 
@@ -111,17 +104,12 @@ class ZCBFInvController(object):
         self.t0_traj     = None
         self.hover_ok_t  = None
         
-        # ******** INITIALIZE OFFSETS *BEFORE* USING THEM IN traj_ref ********
-        self.xy_offset   = None 
-        self.z_offset    = None
+        # ******** INITIALIZE OFFSETS *BEFORE* USING THEM IN trajectory ********
+        self.trajectory.xy_offset = None
+        self.trajectory.z_offset  = None
         # *********************************************************************
 
-        # ******** CORRECTED INITIALIZATION OF psi_traj0 ********
-        # This must be after self.omega_traj, self.r0, self.k_r, self.k_z are defined
-        # AND after xy_offset, z_offset are initialized
-        self.psi_traj0   = self.traj_ref(0.0)[3] 
-        # ********************************************************
-
+        self.psi_traj0   = self.trajectory.ref(0.0)[3]
 
         if self.use_gz:
             from gazebo_msgs.msg import ModelStates
@@ -187,26 +175,26 @@ class ZCBFInvController(object):
     def traj_ref(self, t):
         """Helix reference (world frame)."""
         omt = self.omega_traj * t
-        r   = self.r0 - self.k_r * omt
-        z   = self.k_z * omt
+        r   = self.trajectory.r0 - self.trajectory.k_r * omt
+        z   = self.trajectory.k_z * omt
         cs  = (math.cos(omt), math.sin(omt))
 
         pos = np.array([r * cs[0], r * cs[1], z])
-        if self.xy_offset is not None: # This line caused the error if self.xy_offset wasn't defined
-            pos[:2] += self.xy_offset
-        if self.z_offset is not None: # Similarly for self.z_offset
-            pos[2] += self.z_offset
+        if self.trajectory.xy_offset is not None: # This line caused the error if self.xy_offset wasn't defined
+            pos[:2] += self.trajectory.xy_offset
+        if self.trajectory.z_offset is not None: # Similarly for self.z_offset
+            pos[2] += self.trajectory.z_offset
 
-        dr   = -self.k_r
+        dr   = -self.trajectory.k_r
         # Components of d(pos)/d(omt)
         xp_comp = dr * cs[0] - r * cs[1]
         yp_comp = dr * cs[1] + r * cs[0]
-        zp_comp = self.k_z
+        zp_comp = self.trajectory.k_z
         vel  = np.array([xp_comp, yp_comp, zp_comp]) * self.omega_traj
         
         # Components of d^2(pos)/d(omt)^2
-        a0_comp =  2 * self.k_r * cs[1] - r * cs[0] # d(xp_comp)/d(omt)
-        a1_comp = -2 * self.k_r * cs[0] - r * cs[1] # d(yp_comp)/d(omt)
+        a0_comp =  2 * self.trajectory.k_r * cs[1] - r * cs[0] # d(xp_comp)/d(omt)
+        a1_comp = -2 * self.trajectory.k_r * cs[0] - r * cs[1] # d(yp_comp)/d(omt)
         acc  = np.array([a0_comp, a1_comp, 0.0]) * (self.omega_traj ** 2)
 
         psi_d = math.atan2(vel[1], vel[0])
@@ -279,11 +267,9 @@ class ZCBFInvController(object):
                             pget("hover_stabilization_secs", 2.0)):
                         rospy.loginfo("TRANSITION  →  TRAJ")
                         self.state, self.t0_traj = State.TRAJ, now
-                        self.xy_offset = np.array([self.x_to - self.r0, self.y_to])
-                        self.z_offset  = self.z_to
+                        self.trajectory.xy_offset = np.array([self.x_to - self.trajectory.r0, self.y_to])
+                        self.trajectory.z_offset  = self.z_to
                         # ******** REMOVED/COMMENTED psi_traj0 UPDATE ********
-                        # To match old code, psi_traj0 is static after init.
-                        # If dynamic update was intended, this line would be kept,
                         # but the initial value was the main problem for first hover.
                         # self.psi_traj0 = self.traj_ref(0.0)[3] 
                         # *****************************************************
@@ -294,14 +280,12 @@ class ZCBFInvController(object):
             if self.t0_traj is None: # Should not happen if logic is correct, but good safeguard
                 rospy.logwarn_throttle(5.0, "In TRAJ state but t0_traj is None. Reverting to HOVER.")
                 self.state = State.HOVER
-                # Reset hover target to current takeoff point, or a safe default
-                # This part needs careful consideration if this path is ever taken
                 return
-            posd, vd, ad_nom, yd, rd = self.traj_ref((now - self.t0_traj).to_sec())
+            posd, vd, ad_nom, yd, rd = self.trajectory.ref((now - self.t0_traj).to_sec())
             tgt   = posd
             gains = self.g_traj
 
-        else:   # LAND / IDLE  (reuse take‑off gains for simplicity, original did this)
+        else:
             tgt   = p_vec # Hold current position
             vd    = ad_nom = np.zeros(3)
             yd, rd = psi, 0.0 # Hold current yaw
@@ -358,11 +342,11 @@ class ZCBFInvController(object):
                 U[0], U[1], U[2], U[3],
                 U_nom[0], U_nom[1], U_nom[2], U_nom[3])
 
-    # ------------------------------------------------ graceful shutdown -----
+    # ------------------------------------------------ shutdown -----
     def shutdown(self):
         stop = Actuators()
         stop.angular_velocities = [0.0] * 4
-        for _ in range(10): # Send a few times to ensure it's received
+        for _ in range(10):
             self.cmd_pub.publish(stop)
             rospy.sleep(0.01)
 
@@ -371,7 +355,7 @@ class ZCBFInvController(object):
 if __name__ == "__main__":
     rospy.init_node("clf_iris_trajectory_controller", anonymous=True)
     try:
-        ZCBFInvController()
+        Controller()
         rospy.spin()
     except rospy.ROSInterruptException:
         pass

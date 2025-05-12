@@ -2,7 +2,7 @@
   <arg name="namespace"                 default="iris"/>
   <arg name="world_name"                default="basic"/>
   <arg name="paused"                    default="false"/>
-  <arg name="gui"                       default="true"/>
+  <arg name="gui"                       default="false"/>
   <arg name="debug"                     default="false"/>
   <arg name="verbose"                   default="false"/>
   <arg name="use_model_states_for_control" default="true"/>
@@ -17,7 +17,7 @@
     <arg name="x"          value="20.0"/>
     <arg name="y"          value="0.0"/>
     <arg name="z"          value="0.1"/>
-    <arg name="yaw"        value="1.57079633"/>
+    <arg name="yaw"        value="3.141592653589793"/>
   </include>
 
 
@@ -74,7 +74,7 @@
     <param name="helix_height" value="30.0" />
     <param name="helix_laps" value="4.0" />
     <param name="trajectory_omega" value="0.07" />
-    <param name="fixed_yaw_deg" value="90.0" />
+    <param name="fixed_yaw_deg" value="180.0" />
 
 
 
@@ -103,11 +103,11 @@
     <param name="k_trajatt2" value="16.0" />
 
     <!-- CBF Parameters -->
-    <param name="cbf_gamma" value="400.0"/>
+    <param name="cbf_gamma" value="100.0"/>
     <param name="drone_radius" value="0.5" />
 
     <!-- Control Loop Rate -->
-    <param name="control_rate" value="480.0" />
+    <param name="control_rate" value="1000.0" />
 
   </node>
 </launch>

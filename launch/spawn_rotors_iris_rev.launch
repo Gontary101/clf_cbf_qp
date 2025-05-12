@@ -51,9 +51,7 @@
             -R 0 -P 0 -Y $(arg yaw)"
       respawn="false" output="screen" />
           <!-- REMOVED '-unpause $(arg paused)' from here -->
-          <node name="unpause_gazebo" pkg="rosservice" type="rosservice"
-          args="call /gazebo/unpause_physics"
-          if="$(arg paused)" />
+
 
 
 </launch>
