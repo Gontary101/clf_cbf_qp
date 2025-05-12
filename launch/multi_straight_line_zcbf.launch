@@ -67,7 +67,7 @@
   <!-- Launch Controllers within their respective namespaces -->
   <!-- Controller for Drone 1 -->
   <group ns="$(arg ns1)">
-    <node pkg="clf_cbf_qp" type="main_multi_drone.py" name="clf_iris_trajectory_controller" output="screen">
+    <node pkg="clf_cbf_qp" type="main_multi_drone_once.py" name="clf_iris_trajectory_controller" output="screen">
       <!-- Load common physical parameters from YAML -->
       <rosparam command="load" file="$(find clf_cbf_qp)/config/common_drone_params.yaml" />
 
@@ -98,7 +98,7 @@
 
   <!-- Controller for Drone 2 -->
   <group ns="$(arg ns2)">
-    <node pkg="clf_cbf_qp" type="main_multi_drone.py" name="clf_iris_trajectory_controller" output="screen">
+    <node pkg="clf_cbf_qp" type="main_multi_drone_once.py" name="clf_iris_trajectory_controller" output="screen">
       <rosparam command="load" file="$(find clf_cbf_qp)/config/common_drone_params.yaml" />
       <!-- Unique Params -->
       <param name="trajectory_start_point" value="$(arg start2)" />
@@ -127,7 +127,7 @@
 
   <!-- Controller for Drone 3 -->
   <group ns="$(arg ns3)">
-    <node pkg="clf_cbf_qp" type="main_multi_drone.py" name="clf_iris_trajectory_controller" output="screen">
+    <node pkg="clf_cbf_qp" type="main_multi_drone_once.py" name="clf_iris_trajectory_controller" output="screen">
       <rosparam command="load" file="$(find clf_cbf_qp)/config/common_drone_params.yaml" />
       <!-- Unique Params -->
       <param name="trajectory_start_point" value="$(arg start3)" />
@@ -156,7 +156,7 @@
 
   <!-- Controller for Drone 4 -->
   <group ns="$(arg ns4)">
-    <node pkg="clf_cbf_qp" type="main_multi_drone.py" name="clf_iris_trajectory_controller" output="screen">
+    <node pkg="clf_cbf_qp" type="main_multi_drone_once.py" name="clf_iris_trajectory_controller" output="screen">
       <rosparam command="load" file="$(find clf_cbf_qp)/config/common_drone_params.yaml" />
       <!-- Unique Params -->
       <param name="trajectory_start_point" value="$(arg start4)" />

@@ -8,7 +8,7 @@ from mav_msgs.msg import Actuators
 from geometry_msgs.msg import Point, Vector3, Pose, Twist
 from std_msgs.msg import Float64MultiArray, String
 from tf.transformations import euler_from_quaternion
-from gazebo_msgs.msg import ModelStates
+from gazebo_msgs.msg import ModelStates # Needed for multi-drone state sharing
 
 from trajectory.straight_line import StraightLineTrajectory
 import dynamics_utils as dyn
@@ -23,29 +23,32 @@ class State(Enum):
     TAKEOFF = 1
     HOVER   = 2
     TRAJ    = 3
-    # LAND    = 4 # Not used in looping example
-    # IDLE    = 5 # Not used in looping example
+    LAND    = 4
+    IDLE    = 5
 
 class Controller(object):
 
     def __init__(self):
-        self.ns     = rospy.get_namespace().strip('/')
-        if not self.ns:
-             self.ns = pget("namespace", "iris")
+        self.ns     = rospy.get_namespace().strip('/') # Get namespace automatically
+        if not self.ns: # Handle case where namespace might be global
+             self.ns = pget("namespace", "iris") # Fallback to param if needed
              rospy.logwarn("Could not determine namespace automatically, using param: %s", self.ns)
         else:
              rospy.loginfo("Controller running in namespace: %s", self.ns)
 
         self.use_gz = pget("use_model_states", False)
         if not self.use_gz:
-             rospy.logerr("Multi-drone collision avoidance requires use_model_states=true.")
+             rospy.logerr("Multi-drone collision avoidance requires use_model_states=true to access /gazebo/model_states.")
              rospy.signal_shutdown("Configuration Error")
              return
 
         self.model  = dyn.DroneModel()
         self.trajectory   = StraightLineTrajectory()
-        self.initial_takeoff_yaw = self.trajectory.yaw_fix_initial
-        self._update_hover_target()
+        self.yaw_fix      = self.trajectory.yaw_fix
+
+        self.x_hover_target = self.trajectory.p0[0]
+        self.y_hover_target = self.trajectory.p0[1]
+        self.z_hover_target = self.trajectory.p0[2]
 
         def gains(tag, k1, k2, a1, a2):
             return [pget("%s%s" % (tag, n), dflt)
@@ -56,6 +59,7 @@ class Controller(object):
 
         self.clf = CLFBackstepping(self.model)
 
+        # --- Multi-Drone Setup ---
         try:
             all_ns_str = pget("all_drone_namespaces", "[]")
             self.all_drone_namespaces = ast.literal_eval(all_ns_str)
@@ -67,39 +71,15 @@ class Controller(object):
             rospy.signal_shutdown("Configuration Error")
             return
 
-        # --- track hover-readiness of each other drone ---
-        self.other_hover_ok = {
-            other_ns: False
-            for other_ns in self.all_drone_namespaces
-            if other_ns != self.ns
-        }
-       
-        full_name = rospy.get_name().lstrip('/')           # e.g. "iris_2/clf_iris_trajectory_controller"
-        ctrl_node = full_name.split('/', 1)[1]             # e.g. "clf_iris_trajectory_controller"
-
-        # subscribe to each peer's private state topic
-        for peer in self.other_hover_ok:
-            topic_name = "/" + peer + "/" + ctrl_node + "/control/state"
-            rospy.loginfo("[%s] Subscribing to peer state topic: %s", self.ns, topic_name)
-            rospy.Subscriber(topic_name,
-                             String,
-                             self._other_state_cb,
-                             callback_args=peer)
-
+        # Store state of other drones {ns: {'pose': Pose, 'twist': Twist, 'time': Time}}
         self.other_drone_states = {
             other_ns: {'pose': None, 'twist': None, 'time': rospy.Time(0)}
             for other_ns in self.all_drone_namespaces if other_ns != self.ns
         }
-        self.state_timeout = rospy.Duration(1.0)
+        self.state_timeout = rospy.Duration(1.0) # Consider other drone state stale after 1s
 
+        # Static obstacles parsed from param (can still be used if needed)
         self.static_obs = self._parse_obstacles()
-
-        #––– LOOPING PARAMETER –––
-        # how many back‐and‐forth segments to execute; 0 → just one forward pass then hover
-        self.n_loop = pget("n_loop", 0)
-        self.loops_remaining = int(self.n_loop)
-        self.done_looping = False
-        rospy.loginfo("[%s] Number of loops set to: %d", self.ns, self.n_loop)
 
         cbf_par  = dict(beta   = pget("zcbf_beta",   1.0),
                         a1     = pget("zcbf_a1",     0.2),
@@ -109,10 +89,12 @@ class Controller(object):
                         order_a= pget("zcbf_order_a", 0))
         self.cbf_pub = rospy.Publisher("~cbf/slack",
                                        Float64MultiArray, queue_size=1)
+        # Initialize CBF with empty dynamic obstacles; will be updated in loop
         self.zcbf = SAFETYFilter(self.model, np.empty((0, 10)), cbf_par,
                                cbf_pub=self.cbf_pub)
 
         # --- Publishers ---
+        # Use relative topic names (will be automatically namespaced)
         self.cmd_pub = rospy.Publisher("command/motor_speed",
                                        Actuators, queue_size=1)
         misc_topics = [
@@ -125,38 +107,34 @@ class Controller(object):
         ]
         self.pubs = {n: rospy.Publisher("~" + n, m, queue_size=1) for n, m in misc_topics}
 
-        self.last        = None
+        # --- State Variables ---
+        self.last        = None # Stores Odometry derived from ModelStates for this drone
         self.state       = State.TAKEOFF
         self.t0_traj     = None
         self.hover_ok_t  = None
         self.initial_xy_pos = None
-
         self.yaw_ramp_start_t = None
+        self.current_hover_yaw = self.yaw_fix
         self.yaw_ramp_duration = rospy.Duration(pget("hover_yaw_ramp_secs", 2.0))
-        self.yaw_ramp_start_angle = self.initial_takeoff_yaw
         self.target_hover_yaw = self.trajectory.psi_d
-        self.current_hover_yaw = self.initial_takeoff_yaw
+        self.trajectory.xy_offset = None
+        self.trajectory.z_offset  = None
 
+        # --- Subscribers ---
+        # Subscribe to global ModelStates for own state and others' states
         self.model_state_sub = rospy.Subscriber("/gazebo/model_states",
                                                 ModelStates, self.cb_model,
-                                                queue_size=1, buff_size=2**24)
+                                                queue_size=1, buff_size=2**24) # Increased buffer
 
         rate = pget("control_rate", 200.0)
         self.timer = rospy.Timer(rospy.Duration(1.0 / rate),
                                  self.loop, reset=True)
         rospy.on_shutdown(self.shutdown)
 
-    def _update_hover_target(self):
-        self.x_hover_target = self.trajectory.p0[0]
-        self.y_hover_target = self.trajectory.p0[1]
-        self.z_hover_target = self.trajectory.p0[2]
-        rospy.loginfo("[%s] New hover target set to: [%.1f, %.1f, %.1f]", self.ns,
-                      self.x_hover_target, self.y_hover_target, self.z_hover_target)
-
     def _parse_obstacles(self):
         default_obs_str = "[]"
         try:
-            raw = pget("dynamic_obstacles", default_obs_str)
+            raw = pget("dynamic_obstacles", default_obs_str) # Keep param name for potential static obs
             lst = ast.literal_eval(raw)
             if not isinstance(lst, list): lst = []
             if lst and not all(isinstance(o, (list, tuple)) and len(o) == 10 and all(isinstance(n, (int, float)) for n in o) for o in lst): lst = []
@@ -173,32 +151,29 @@ class Controller(object):
              rospy.logwarn("[%s] Unexpected error processing static obstacles '%s': %s. Using empty list.", self.ns, raw, e)
              return np.empty((0,10), dtype=float)
 
-    def _other_state_cb(self, msg, other_ns):
-        """
-        Update whether another drone is currently in HOVER.
-        """
-        is_hover = (msg.data == State.HOVER.name)
-        self.other_hover_ok[other_ns] = is_hover
-
     def cb_model(self, msg):
-        now = rospy.Time.now()
+        now = rospy.Time.now() # Use consistent time
         found_self = False
         for i, name in enumerate(msg.name):
+            # Update own state
             if name == self.ns:
                 o = Odometry()
                 o.header.stamp    = now
                 o.header.frame_id = "world"
-                o.child_frame_id  = self.ns + "/base_link"
+                o.child_frame_id  = self.ns + "/base_link" # Standard convention
                 o.pose.pose  = msg.pose[i]
                 o.twist.twist = msg.twist[i]
                 self.last = o
                 found_self = True
+            # Update other drone states
             elif name in self.other_drone_states:
                 self.other_drone_states[name]['pose'] = msg.pose[i]
                 self.other_drone_states[name]['twist'] = msg.twist[i]
                 self.other_drone_states[name]['time'] = now
-        if not found_self and self.last is None:
+
+        if not found_self and self.last is None: # Only warn if never found
              rospy.logwarn_throttle(5.0, "[%s] Own state not found in /gazebo/model_states", self.ns)
+
 
     def loop(self, _evt):
         if self.last is None:
@@ -214,8 +189,8 @@ class Controller(object):
         phi, th, psi = euler_from_quaternion((q.x, q.y, q.z, q.w))
         R_mat = rotation_matrix(phi, th, psi)
         p_vec = np.array([p.x, p.y, p.z])
-        v_world   = np.array([v.x, v.y, v.z])
-        omega_b   = np.dot(R_mat.T, np.array([w.x, w.y, w.z]))
+        v_world   = np.array([v.x, v.y, v.z]) # Gazebo twist is in world frame
+        omega_b   = np.dot(R_mat.T, np.array([w.x, w.y, w.z])) # Gazebo angular twist is in body frame
 
         vd = ad_nom = np.zeros(3)
         gains = self.g_take
@@ -226,8 +201,7 @@ class Controller(object):
                 rospy.loginfo("[%s] Takeoff initiated. Holding XY at [%.2f, %.2f], climbing to Z=%.2f",
                               self.ns, self.initial_xy_pos[0], self.initial_xy_pos[1], self.z_hover_target)
             tgt = np.array([self.initial_xy_pos[0], self.initial_xy_pos[1], self.z_hover_target])
-            yd, rd = self.initial_takeoff_yaw, 0.0
-
+            yd, rd = self.yaw_fix, 0.0
             pos_thr_z = pget("hover_pos_threshold", 0.15)
             vel_thr   = pget("hover_vel_threshold", 0.10)
             err_z     = abs(p_vec[2] - self.z_hover_target)
@@ -237,26 +211,20 @@ class Controller(object):
                 self.state = State.HOVER
                 self.hover_ok_t = None
                 self.yaw_ramp_start_t = now
-                self.yaw_ramp_start_angle = self.initial_takeoff_yaw
-                self.target_hover_yaw = self.trajectory.psi_d
-                self.current_hover_yaw = self.initial_takeoff_yaw
+                self.current_hover_yaw = self.yaw_fix
 
         elif self.state == State.HOVER:
             tgt = np.array([self.x_hover_target, self.y_hover_target, self.z_hover_target])
-
             if self.yaw_ramp_start_t is not None and self.yaw_ramp_duration.to_sec() > 1e-6:
                 elapsed_ramp_time = (now - self.yaw_ramp_start_t).to_sec()
                 ramp_fraction = np.clip(elapsed_ramp_time / self.yaw_ramp_duration.to_sec(), 0.0, 1.0)
-
-                delta_psi = self.target_hover_yaw - self.yaw_ramp_start_angle
+                delta_psi = self.target_hover_yaw - self.yaw_fix
                 delta_psi = (delta_psi + math.pi) % (2 * math.pi) - math.pi
-                self.current_hover_yaw = self.yaw_ramp_start_angle + delta_psi * ramp_fraction
+                self.current_hover_yaw = self.yaw_fix + delta_psi * ramp_fraction
                 self.current_hover_yaw = (self.current_hover_yaw + math.pi) % (2 * math.pi) - math.pi
-
                 yd, rd = self.current_hover_yaw, 0.0
-
                 if ramp_fraction >= 1.0:
-                    rospy.loginfo_once("[%s] Hover yaw ramp complete. Target Yaw: %.1f deg", self.ns, math.degrees(self.target_hover_yaw))
+                    rospy.loginfo_once("[%s] Hover yaw ramp complete.", self.ns)
                     self.yaw_ramp_start_t = None
                     yd, rd = self.target_hover_yaw, 0.0
             else:
@@ -272,120 +240,73 @@ class Controller(object):
                 if self.hover_ok_t is None:
                     self.hover_ok_t = now
                 elif (now - self.hover_ok_t) >= rospy.Duration(pget("hover_stabilization_secs", 1.0)):
-                    # if we've already finished all loops, stay hovering
-                    if self.done_looping:
-                        rospy.loginfo("[%s] All loops done; remaining in HOVER.", self.ns)
-                        return
-
-                    # otherwise wait for peers and then go back to TRAJ
-                    if all(self.other_hover_ok.values()):
-                        rospy.loginfo("[%s] Hover stable and all drones ready. TRANSITION  →  TRAJ", self.ns)
-                        self.state = State.TRAJ
-                        self.t0_traj = now
-
-                        # compute new offsets for the next segment
-                        self.trajectory.xy_offset = p_vec[:2] - self.trajectory.p0[:2]
-                        self.trajectory.z_offset  = p_vec[2]  - self.trajectory.p0[2]
-                        rospy.loginfo("[%s] Calculated trajectory offsets: XY=[%.2f, %.2f], Z=%.2f",
-                                      self.ns, self.trajectory.xy_offset[0], self.trajectory.xy_offset[1],
-                                      self.trajectory.z_offset)
-                    else:
-                        rospy.loginfo(
-                            "[%s] Hover stable but still waiting for peers: %s",
-                            self.ns, self.other_hover_ok
-                        )
+                    rospy.loginfo("[%s] Hover stable. TRANSITION  →  TRAJ", self.ns)
+                    self.state = State.TRAJ
+                    self.t0_traj = now
+                    self.trajectory.xy_offset = p_vec[:2] - self.trajectory.p0[:2]
+                    self.trajectory.z_offset  = p_vec[2]  - self.trajectory.p0[2]
+                    rospy.loginfo("[%s] Calculated trajectory offsets: XY=[%.2f, %.2f], Z=%.2f",
+                                  self.ns, self.trajectory.xy_offset[0], self.trajectory.xy_offset[1],
+                                  self.trajectory.z_offset)
             else:
                 self.hover_ok_t = None
 
         elif self.state == State.TRAJ:
-            gains = self.g_traj
             if self.t0_traj is None:
-                rospy.logerr("[%s] In TRAJ state but t0_traj is None! Reverting to HOVER.", self.ns)
+                rospy.logwarn_throttle(5.0, "[%s] In TRAJ state but t0_traj is None. Reverting to HOVER.", self.ns)
                 self.state = State.HOVER
                 self.hover_ok_t = None
                 self.yaw_ramp_start_t = now
-                self.yaw_ramp_start_angle = psi
                 self.current_hover_yaw = psi
                 return
+            posd, vd, ad_nom, yd, rd = self.trajectory.ref((now - self.t0_traj).to_sec())
+            tgt   = posd
+            gains = self.g_traj
 
-            elapsed_traj_time = (now - self.t0_traj).to_sec()
-
-            if elapsed_traj_time >= (self.trajectory.T + 0.1):
-                # if we still have loops remaining, do a back‐and‐forth
-                if self.loops_remaining > 0:
-                    self.loops_remaining -= 1
-                    rospy.loginfo("[%s] Segment done (%.2f s). %d loops left → reversing.", 
-                                  self.ns, elapsed_traj_time, self.loops_remaining)
-                    self.trajectory.reverse()
-                    self._update_hover_target()
-
-                    # reset yaw‐ramp onto new heading
-                    self.yaw_ramp_start_t = now
-                    self.yaw_ramp_start_angle = psi
-                    self.current_hover_yaw = psi
-
-                    self.state = State.HOVER
-                    self.hover_ok_t = None
-                    self.t0_traj = None
-                    return
-                # otherwise we're done: hover at the final end‐point forever
-                else:
-                    rospy.loginfo("[%s] Final trajectory done (%.2f s). Hovering at end‐point.", 
-                                  self.ns, elapsed_traj_time)
-                    # compute global end‐point = pf + offsets
-                    global_pf = np.concatenate((
-                        self.trajectory.pf[:2] + self.trajectory.xy_offset,
-                        [_np.array([self.trajectory.pf[2]]) + self.trajectory.z_offset]
-                    )).flatten()
-                    self.x_hover_target, self.y_hover_target, self.z_hover_target = global_pf
-
-                    # lock in final yaw, skip ramp
-                    self.target_hover_yaw = psi
-                    self.current_hover_yaw = psi
-                    self.yaw_ramp_start_t = None
-
-                    self.done_looping = True
-                    self.state = State.HOVER
-                    self.hover_ok_t = None
-                    self.t0_traj = None
-                    return
-
-            else:
-                posd, vd, ad_nom, yd, rd = self.trajectory.ref(elapsed_traj_time)
-                tgt = posd
-
-        else: 
-            rospy.logwarn_throttle(10.0, "[%s] In unexpected state: %s. Holding position.", self.ns, self.state.name)
+        else: # LAND, IDLE
             tgt   = p_vec
             vd    = ad_nom = np.zeros(3)
             yd, rd = psi, 0.0
             gains = self.g_take
 
+        # --- Build Dynamic Obstacle List for CBF ---
         dynamic_obs_list = []
         for other_ns, other_state in self.other_drone_states.items():
             if other_state['pose'] is not None and (now - other_state['time']) < self.state_timeout:
                 op = other_state['pose'].position
                 ov = other_state['twist'].linear
+                # Use zero acceleration for other drones as it's not directly available
+                # The CBF formulation expects [x,y,z, vx,vy,vz, ax,ay,az, radius]
                 obs_entry = [op.x, op.y, op.z, ov.x, ov.y, ov.z, 0.0, 0.0, 0.0, self.model.r_drone]
                 dynamic_obs_list.append(obs_entry)
+            #else:
+            #    rospy.logwarn_throttle(5.0, "[%s] State for drone '%s' is stale or missing.", self.ns, other_ns)
+
+        # Combine static (if any) and dynamic obstacles
         dynamic_obs_array = np.array(dynamic_obs_list, dtype=float)
         if self.static_obs.size > 0:
              combined_obs = np.vstack((self.static_obs, dynamic_obs_array)) if dynamic_obs_array.size > 0 else self.static_obs
         else:
              combined_obs = dynamic_obs_array
+
+        # Update the obstacles used by the ZCBF filter instance for this cycle
         self.zcbf.obs = combined_obs
 
+        # ----- nominal CLF control ------------------------------------------
         st = dict(p_vec=p_vec, v_vec=v_world, phi=phi, th=th,
                   psi=psi,  omega_body=omega_b, R_mat=R_mat)
         ref = dict(tgt=tgt, vd=vd, ad=ad_nom, yd=yd, rd=rd)
         out = self.clf.compute(st, ref, gains)
         U_nom = out["U_nom"]
 
+        # ----- ZCBF safety filter -------------------------------------------
+        # The filter will now use the updated self.zcbf.obs
         st['gains']  = gains
         st['ref']    = ref
         st['ad_nom'] = ad_nom
-        U, _ = self.zcbf.filter(self.state.name, U_nom, st, out)
+        U, _ = self.zcbf.filter(self.state.name, U_nom, st, out) # Pass state name
 
+        # ----- motor allocation & publish ------------------------------------
         w_cmd, w_sq = self.model.thrust_torques_to_motor_speeds(U)
 
         m_msg = Actuators()
@@ -393,6 +314,7 @@ class Controller(object):
         m_msg.angular_velocities = w_cmd.tolist()
         self.cmd_pub.publish(m_msg)
 
+        # -- debug / telemetry
         self.pubs["control/state"].publish(String(data=self.state.name))
         self.pubs["control/U"].publish(Float64MultiArray(data=U))
         self.pubs["control/omega_sq"].publish(Float64MultiArray(data=w_sq))
@@ -406,30 +328,34 @@ class Controller(object):
         self.pubs["control/desired_attitude_deg"].publish(Point(*(math.degrees(i) for i in (out["phi_d"], out["theta_d"], yd))))
         self.pubs["control/virtual_inputs"].publish(Point(out["Uex"], out["Uey"], 0.0))
 
-        if DBG:
-             log_state = self.state.name
-             log_yd = math.degrees(yd)
-             log_target_yaw = math.degrees(self.target_hover_yaw)
-             log_ramp = "Ramping" if self.yaw_ramp_start_t is not None else "Steady"
-             rospy.loginfo_throttle(LOG_T,
-                "[%s] State=%s | Tgt=[%.1f,%.1f,%.1f] | Yd=%.1f (%s->%.1f %s) | #Obs=%d",
-                self.ns, log_state,
+        if DBG and combined_obs.size > 0:
+            rospy.loginfo_throttle(LOG_T,
+                "[%s] State=%s | #Obs=%d | Tgt=[%.1f %.1f %.1f] | U=[%.1f %.1f %.1f %.1f]",
+                self.ns, self.state.name, combined_obs.shape[0],
                 tgt[0], tgt[1], tgt[2],
-                log_yd, math.degrees(self.yaw_ramp_start_angle), log_target_yaw, log_ramp,
-                combined_obs.shape[0])
+                U[0], U[1], U[2], U[3])
+        elif DBG:
+             rospy.loginfo_throttle(LOG_T,
+                "[%s] State=%s | #Obs=0 | Tgt=[%.1f %.1f %.1f] | U=[%.1f %.1f %.1f %.1f]",
+                self.ns, self.state.name,
+                tgt[0], tgt[1], tgt[2],
+                U[0], U[1], U[2], U[3])
+
 
     def shutdown(self):
         rospy.loginfo("[%s] Shutting down controller.", self.ns)
         stop = Actuators()
         stop.angular_velocities = [0.0] * 4
+        # Publish stop command multiple times to ensure it's received
         rate = rospy.Rate(100)
         for _ in range(10):
             if rospy.is_shutdown(): break
             self.cmd_pub.publish(stop)
             rate.sleep()
 
+
 if __name__ == "__main__":
-    rospy.init_node("clf_iris_trajectory_controller")
+    rospy.init_node("clf_iris_trajectory_controller") # Node name is generic, namespace distinguishes
     try:
         controller = Controller()
         rospy.spin()
@@ -437,5 +363,3 @@ if __name__ == "__main__":
         pass
     except Exception as e:
         rospy.logerr("Unhandled exception in controller: %s", e)
-        import traceback
-        traceback.print_exc() 

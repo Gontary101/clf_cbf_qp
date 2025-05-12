@@ -2,7 +2,7 @@
   <arg name="namespace"                 default="iris"/>
   <arg name="world_name"                default="basic"/>
   <arg name="paused"                    default="false"/>
-  <arg name="gui"                       default="false"/>
+  <arg name="gui"                       default="true"/>
   <arg name="debug"                     default="false"/>
   <arg name="verbose"                   default="false"/>
   <arg name="use_model_states_for_control" default="true"/>
@@ -110,4 +110,9 @@
     <param name="control_rate" value="1000.0" />
 
   </node>
+  <node pkg="clf_cbf_qp" type="csv_recorder.py" name="csv_recorder" output="screen">
+        <!-- Optional: Specify output directory and filename prefix -->
+        <param name="output_dir" value="$(find clf_cbf_qp)/logs"/> 
+        <param name="filename" value="flight_data"/>
+    </node>
 </launch>

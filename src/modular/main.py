@@ -94,6 +94,11 @@ class Controller(object):
             ("control/desired_acceleration", Vector3),
             ("control/desired_attitude_deg", Point),
             ("control/virtual_inputs",     Point),
+            ("state/position",             Point),          
+            ("state/velocity_world",       Vector3),         
+            ("state/orientation_eul",      Point),           
+            ("state/rates_body",           Vector3),         
+            ("control/U_nominal",          Float64MultiArray)
         ]
         self.pubs = {n: rospy.Publisher("~" + n, m, queue_size=1)
                      for n, m in misc_topics}
@@ -314,6 +319,11 @@ class Controller(object):
         m_msg.angular_velocities = w_cmd.tolist()
         self.cmd_pub.publish(m_msg)
 
+        self.pubs["state/position"].publish(Point(*p_vec))
+        self.pubs["state/velocity_world"].publish(Vector3(*v_world))
+        self.pubs["state/orientation_eul"].publish(Point(phi, th, psi)) # Publish radians
+        self.pubs["state/rates_body"].publish(Vector3(*omega_b))      # Publish rad/s
+        self.pubs["control/U_nominal"].publish(Float64MultiArray(data=U_nom))
         # -- debug / telemetry
         self.pubs["control/state"].publish(String(data=self.state.name))
         self.pubs["control/U"].publish(Float64MultiArray(data=U))
