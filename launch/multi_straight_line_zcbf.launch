@@ -1,0 +1,186 @@
+<launch>
+  <!-- General Simulation Settings -->
+  <arg name="world_name"                default="basic"/>
+  <arg name="paused"                    default="true"/>
+  <arg name="gui"                       default="true"/>
+  <arg name="debug"                     default="false"/>
+  <arg name="verbose"                   default="false"/>
+
+  <!-- Drone Fleet Configuration -->
+  <arg name="drone_count"               default="4"/>
+  <arg name="drone_namespaces_list"     default="['iris_1', 'iris_2', 'iris_3', 'iris_4']"/>
+  <arg name="mav_name_common"           default="iris"/>
+
+  <!-- Individual Drone Start/End Points & Spawn Coords -->
+  <arg name="ns1" default="iris_1"/><arg name="x1" default="20.0"/><arg name="y1" default="10.0"/><arg name="z1" default="0.1"/><arg name="start1" default="[20.0, 10.0, 3.0]"/><arg name="end1" default="[-20.0, -10.0, 7.0]"/>
+  <arg name="ns2" default="iris_2"/><arg name="x2" default="20.0"/><arg name="y2" default="5.0"/><arg name="z2" default="0.1"/><arg name="start2" default="[20.0, 5.0, 3.0]"/><arg name="end2" default="[-20.0, -5.0, 7.0]"/>
+  <arg name="ns3" default="iris_3"/><arg name="x3" default="20.0"/><arg name="y3" default="-5.0"/><arg name="z3" default="0.1"/><arg name="start3" default="[20.0, -5.0, 3.0]"/><arg name="end3" default="[-20.0, 5.0, 7.0]"/>
+  <arg name="ns4" default="iris_4"/><arg name="x4" default="20.0"/><arg name="y4" default="-10.0"/><arg name="z4" default="0.1"/><arg name="start4" default="[20.0, -10.0, 3.0]"/><arg name="end4" default="[-20.0, 10.0, 7.0]"/>
+
+  <!-- ==================== COMMON CONTROLLER ARGUMENTS ==================== -->
+  <!-- General -->
+  <arg name="use_model_states_common"   default="true" />
+  <arg name="control_rate_common"       default="200.0" />
+  <!-- Trajectory & Hover -->
+  <arg name="trajectory_duration_common" default="40.0" />
+  <arg name="fixed_yaw_deg_common"      default="180.0" />
+  <arg name="hover_pos_threshold_common" default="0.25" />
+  <arg name="hover_vel_threshold_common" default="0.25" />
+  <arg name="hover_stabilization_secs_common" default="2.0" />
+  <arg name="hover_yaw_ramp_secs_common" default="2.5" />
+  <!-- Gains -->
+  <arg name="k_takepos1_common" default="0.12" /><arg name="k_takepos2_common" default="0.25" />
+  <arg name="k_takeatt1_common" default="1.5" /><arg name="k_takeatt2_common" default="3.0" />
+  <arg name="k_trajpos1_common" default="1.2" /><arg name="k_trajpos2_common" default="5.0" />
+  <arg name="k_trajatt1_common" default="8.0" /><arg name="k_trajatt2_common" default="16.0" />
+  <!-- ZCBF Parameters -->
+  <arg name="zcbf_beta_common"   default="1.0" /><arg name="zcbf_a1_common" value="0.5" />
+  <arg name="zcbf_a2_common"     default="1.0" /><arg name="zcbf_gamma_common" value="2.8" />
+  <arg name="zcbf_kappa_common"  default="0.8" /><arg name="zcbf_order_a_common" value="0" />
+  <!-- Obstacles -->
+  <arg name="dynamic_obstacles_common" default="[]" />
+  <!-- ====================================================================== -->
+
+
+  <!-- Launch Gazebo World ONCE -->
+  <include file="$(find clf_cbf_qp)/launch/launch_gazebo_world.launch">
+      <arg name="world_name" value="$(arg world_name)"/>
+      <arg name="paused"     value="$(arg paused)"/>
+      <arg name="gui"        value="$(arg gui)"/>
+      <arg name="debug"      value="$(arg debug)"/>
+      <arg name="verbose"    value="$(arg verbose)"/>
+  </include>
+
+  <!-- Define Unique Robot Descriptions Globally -->
+  <param name="/robot_description_$(arg ns1)" command="$(find xacro)/xacro '$(find clf_cbf_qp)/urdf/my_iris.xacro' mav_name:=$(arg mav_name_common) namespace:=$(arg ns1) enable_logging:=false enable_ground_truth:=true enable_mavlink_interface:=false log_file:=$(arg ns1) wait_to_record_bag:=false gazebo_snippets_file:='$(find clf_cbf_qp)/urdf/iris_addons.gazebo' --inorder" />
+  <param name="/robot_description_$(arg ns2)" command="$(find xacro)/xacro '$(find clf_cbf_qp)/urdf/my_iris.xacro' mav_name:=$(arg mav_name_common) namespace:=$(arg ns2) enable_logging:=false enable_ground_truth:=true enable_mavlink_interface:=false log_file:=$(arg ns2) wait_to_record_bag:=false gazebo_snippets_file:='$(find clf_cbf_qp)/urdf/iris_addons.gazebo' --inorder" />
+  <param name="/robot_description_$(arg ns3)" command="$(find xacro)/xacro '$(find clf_cbf_qp)/urdf/my_iris.xacro' mav_name:=$(arg mav_name_common) namespace:=$(arg ns3) enable_logging:=false enable_ground_truth:=true enable_mavlink_interface:=false log_file:=$(arg ns3) wait_to_record_bag:=false gazebo_snippets_file:='$(find clf_cbf_qp)/urdf/iris_addons.gazebo' --inorder" />
+  <param name="/robot_description_$(arg ns4)" command="$(find xacro)/xacro '$(find clf_cbf_qp)/urdf/my_iris.xacro' mav_name:=$(arg mav_name_common) namespace:=$(arg ns4) enable_logging:=false enable_ground_truth:=true enable_mavlink_interface:=false log_file:=$(arg ns4) wait_to_record_bag:=false gazebo_snippets_file:='$(find clf_cbf_qp)/urdf/iris_addons.gazebo' --inorder" />
+
+  <!-- Spawn Models Globally using their Unique Descriptions -->
+  <node name="spawn_$(arg ns1)" pkg="gazebo_ros" type="spawn_model" args="-urdf -param /robot_description_$(arg ns1) -model $(arg ns1) -x $(arg x1) -y $(arg y1) -z $(arg z1) -Y 3.14159" respawn="false" output="screen"/>
+  <node name="spawn_$(arg ns2)" pkg="gazebo_ros" type="spawn_model" args="-urdf -param /robot_description_$(arg ns2) -model $(arg ns2) -x $(arg x2) -y $(arg y2) -z $(arg z2) -Y 3.14159" respawn="false" output="screen"/>
+  <node name="spawn_$(arg ns3)" pkg="gazebo_ros" type="spawn_model" args="-urdf -param /robot_description_$(arg ns3) -model $(arg ns3) -x $(arg x3) -y $(arg y3) -z $(arg z3) -Y 3.14159" respawn="false" output="screen"/>
+  <node name="spawn_$(arg ns4)" pkg="gazebo_ros" type="spawn_model" args="-urdf -param /robot_description_$(arg ns4) -model $(arg ns4) -x $(arg x4) -y $(arg y4) -z $(arg z4) -Y 3.14159" respawn="false" output="screen"/>
+
+
+  <!-- Launch Controllers within their respective namespaces -->
+  <!-- Controller for Drone 1 -->
+  <group ns="$(arg ns1)">
+    <node pkg="clf_cbf_qp" type="main_multi_drone.py" name="clf_iris_trajectory_controller" output="screen">
+      <!-- Load common physical parameters from YAML -->
+      <rosparam command="load" file="$(find clf_cbf_qp)/config/common_drone_params.yaml" />
+
+      <!-- Unique Params -->
+      <param name="trajectory_start_point" value="$(arg start1)" />
+      <param name="trajectory_end_point"   value="$(arg end1)" />
+      <!-- Common Params (Referencing top-level args) -->
+      <param name="namespace" value="$(arg ns1)" />
+      <param name="all_drone_namespaces" value="$(arg drone_namespaces_list)"/>
+      <param name="use_model_states" value="$(arg use_model_states_common)" />
+      <param name="control_rate" value="$(arg control_rate_common)" />
+      <param name="trajectory_duration"    value="$(arg trajectory_duration_common)" />
+      <param name="fixed_yaw_deg"          value="$(arg fixed_yaw_deg_common)" />
+      <param name="hover_pos_threshold" value="$(arg hover_pos_threshold_common)" />
+      <param name="hover_vel_threshold" value="$(arg hover_vel_threshold_common)" />
+      <param name="hover_stabilization_secs" value="$(arg hover_stabilization_secs_common)" />
+      <param name="hover_yaw_ramp_secs" value="$(arg hover_yaw_ramp_secs_common)" />
+      <param name="k_takepos1" value="$(arg k_takepos1_common)" /><param name="k_takepos2" value="$(arg k_takepos2_common)" />
+      <param name="k_takeatt1" value="$(arg k_takeatt1_common)" /><param name="k_takeatt2" value="$(arg k_takeatt2_common)" />
+      <param name="k_trajpos1" value="$(arg k_trajpos1_common)" /><param name="k_trajpos2" value="$(arg k_trajpos2_common)" />
+      <param name="k_trajatt1" value="$(arg k_trajatt1_common)" /><param name="k_trajatt2" value="$(arg k_trajatt2_common)" />
+      <param name="zcbf_beta"   value="$(arg zcbf_beta_common)" /><param name="zcbf_a1" value="$(arg zcbf_a1_common)" />
+      <param name="zcbf_a2"     value="$(arg zcbf_a2_common)" /><param name="zcbf_gamma" value="$(arg zcbf_gamma_common)" />
+      <param name="zcbf_kappa"  value="$(arg zcbf_kappa_common)" /><param name="zcbf_order_a" value="$(arg zcbf_order_a_common)" />
+      <param name="dynamic_obstacles" value="$(arg dynamic_obstacles_common)" />
+    </node>
+  </group>
+
+  <!-- Controller for Drone 2 -->
+  <group ns="$(arg ns2)">
+    <node pkg="clf_cbf_qp" type="main_multi_drone.py" name="clf_iris_trajectory_controller" output="screen">
+      <rosparam command="load" file="$(find clf_cbf_qp)/config/common_drone_params.yaml" />
+      <!-- Unique Params -->
+      <param name="trajectory_start_point" value="$(arg start2)" />
+      <param name="trajectory_end_point"   value="$(arg end2)" />
+      <!-- Common Params -->
+      <param name="namespace" value="$(arg ns2)" />
+      <param name="all_drone_namespaces" value="$(arg drone_namespaces_list)"/>
+      <param name="use_model_states" value="$(arg use_model_states_common)" />
+      <param name="control_rate" value="$(arg control_rate_common)" />
+      <param name="trajectory_duration"    value="$(arg trajectory_duration_common)" />
+      <param name="fixed_yaw_deg"          value="$(arg fixed_yaw_deg_common)" />
+      <param name="hover_pos_threshold" value="$(arg hover_pos_threshold_common)" />
+      <param name="hover_vel_threshold" value="$(arg hover_vel_threshold_common)" />
+      <param name="hover_stabilization_secs" value="$(arg hover_stabilization_secs_common)" />
+      <param name="hover_yaw_ramp_secs" value="$(arg hover_yaw_ramp_secs_common)" />
+      <param name="k_takepos1" value="$(arg k_takepos1_common)" /><param name="k_takepos2" value="$(arg k_takepos2_common)" />
+      <param name="k_takeatt1" value="$(arg k_takeatt1_common)" /><param name="k_takeatt2" value="$(arg k_takeatt2_common)" />
+      <param name="k_trajpos1" value="$(arg k_trajpos1_common)" /><param name="k_trajpos2" value="$(arg k_trajpos2_common)" />
+      <param name="k_trajatt1" value="$(arg k_trajatt1_common)" /><param name="k_trajatt2" value="$(arg k_trajatt2_common)" />
+      <param name="zcbf_beta"   value="$(arg zcbf_beta_common)" /><param name="zcbf_a1" value="$(arg zcbf_a1_common)" />
+      <param name="zcbf_a2"     value="$(arg zcbf_a2_common)" /><param name="zcbf_gamma" value="$(arg zcbf_gamma_common)" />
+      <param name="zcbf_kappa"  value="$(arg zcbf_kappa_common)" /><param name="zcbf_order_a" value="$(arg zcbf_order_a_common)" />
+      <param name="dynamic_obstacles" value="$(arg dynamic_obstacles_common)" />
+    </node>
+  </group>
+
+  <!-- Controller for Drone 3 -->
+  <group ns="$(arg ns3)">
+    <node pkg="clf_cbf_qp" type="main_multi_drone.py" name="clf_iris_trajectory_controller" output="screen">
+      <rosparam command="load" file="$(find clf_cbf_qp)/config/common_drone_params.yaml" />
+      <!-- Unique Params -->
+      <param name="trajectory_start_point" value="$(arg start3)" />
+      <param name="trajectory_end_point"   value="$(arg end3)" />
+      <!-- Common Params -->
+      <param name="namespace" value="$(arg ns3)" />
+      <param name="all_drone_namespaces" value="$(arg drone_namespaces_list)"/>
+      <param name="use_model_states" value="$(arg use_model_states_common)" />
+      <param name="control_rate" value="$(arg control_rate_common)" />
+      <param name="trajectory_duration"    value="$(arg trajectory_duration_common)" />
+      <param name="fixed_yaw_deg"          value="$(arg fixed_yaw_deg_common)" />
+      <param name="hover_pos_threshold" value="$(arg hover_pos_threshold_common)" />
+      <param name="hover_vel_threshold" value="$(arg hover_vel_threshold_common)" />
+      <param name="hover_stabilization_secs" value="$(arg hover_stabilization_secs_common)" />
+      <param name="hover_yaw_ramp_secs" value="$(arg hover_yaw_ramp_secs_common)" />
+      <param name="k_takepos1" value="$(arg k_takepos1_common)" /><param name="k_takepos2" value="$(arg k_takepos2_common)" />
+      <param name="k_takeatt1" value="$(arg k_takeatt1_common)" /><param name="k_takeatt2" value="$(arg k_takeatt2_common)" />
+      <param name="k_trajpos1" value="$(arg k_trajpos1_common)" /><param name="k_trajpos2" value="$(arg k_trajpos2_common)" />
+      <param name="k_trajatt1" value="$(arg k_trajatt1_common)" /><param name="k_trajatt2" value="$(arg k_trajatt2_common)" />
+      <param name="zcbf_beta"   value="$(arg zcbf_beta_common)" /><param name="zcbf_a1" value="$(arg zcbf_a1_common)" />
+      <param name="zcbf_a2"     value="$(arg zcbf_a2_common)" /><param name="zcbf_gamma" value="$(arg zcbf_gamma_common)" />
+      <param name="zcbf_kappa"  value="$(arg zcbf_kappa_common)" /><param name="zcbf_order_a" value="$(arg zcbf_order_a_common)" />
+      <param name="dynamic_obstacles" value="$(arg dynamic_obstacles_common)" />
+    </node>
+  </group>
+
+  <!-- Controller for Drone 4 -->
+  <group ns="$(arg ns4)">
+    <node pkg="clf_cbf_qp" type="main_multi_drone.py" name="clf_iris_trajectory_controller" output="screen">
+      <rosparam command="load" file="$(find clf_cbf_qp)/config/common_drone_params.yaml" />
+      <!-- Unique Params -->
+      <param name="trajectory_start_point" value="$(arg start4)" />
+      <param name="trajectory_end_point"   value="$(arg end4)" />
+      <!-- Common Params -->
+      <param name="namespace" value="$(arg ns4)" />
+      <param name="all_drone_namespaces" value="$(arg drone_namespaces_list)"/>
+      <param name="use_model_states" value="$(arg use_model_states_common)" />
+      <param name="control_rate" value="$(arg control_rate_common)" />
+      <param name="trajectory_duration"    value="$(arg trajectory_duration_common)" />
+      <param name="fixed_yaw_deg"          value="$(arg fixed_yaw_deg_common)" />
+      <param name="hover_pos_threshold" value="$(arg hover_pos_threshold_common)" />
+      <param name="hover_vel_threshold" value="$(arg hover_vel_threshold_common)" />
+      <param name="hover_stabilization_secs" value="$(arg hover_stabilization_secs_common)" />
+      <param name="hover_yaw_ramp_secs" value="$(arg hover_yaw_ramp_secs_common)" />
+      <param name="k_takepos1" value="$(arg k_takepos1_common)" /><param name="k_takepos2" value="$(arg k_takepos2_common)" />
+      <param name="k_takeatt1" value="$(arg k_takeatt1_common)" /><param name="k_takeatt2" value="$(arg k_takeatt2_common)" />
+      <param name="k_trajpos1" value="$(arg k_trajpos1_common)" /><param name="k_trajpos2" value="$(arg k_trajpos2_common)" />
+      <param name="k_trajatt1" value="$(arg k_trajatt1_common)" /><param name="k_trajatt2" value="$(arg k_trajatt2_common)" />
+      <param name="zcbf_beta"   value="$(arg zcbf_beta_common)" /><param name="zcbf_a1" value="$(arg zcbf_a1_common)" />
+      <param name="zcbf_a2"     value="$(arg zcbf_a2_common)" /><param name="zcbf_gamma" value="$(arg zcbf_gamma_common)" />
+      <param name="zcbf_kappa"  value="$(arg zcbf_kappa_common)" /><param name="zcbf_order_a" value="$(arg zcbf_order_a_common)" />
+      <param name="dynamic_obstacles" value="$(arg dynamic_obstacles_common)" />
+    </node>
+  </group>
+
+</launch>

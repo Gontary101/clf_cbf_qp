@@ -1,0 +1,84 @@
+<launch>
+  <arg name="namespace"                 default="iris"/>
+  <arg name="world_name"                default="basic"/>
+  <arg name="paused"                    default="true"/>
+  <arg name="gui"                       default="true"/>
+  <arg name="debug"                     default="false"/>
+  <arg name="verbose"                   default="false"/>
+
+  <include file="$(find clf_cbf_qp)/launch/spawn_rotors_iris_rev.launch">
+    <arg name="namespace" value="$(arg namespace)"/>
+    <arg name="world_name" value="$(arg world_name)"/>
+    <arg name="paused"     value="$(arg paused)"/>
+    <arg name="gui"        value="$(arg gui)"/>
+    <arg name="debug"      value="$(arg debug)"/>
+    <arg name="verbose"    value="$(arg verbose)"/>
+    <!-- Initial spawn position. Drone will takeoff towards trajectory_start_point -->
+    <arg name="x"          value="20.0"/> <!-- Changed to match default start point x -->
+    <arg name="y"          value="10.0"/> <!-- Changed to match default start point y -->
+    <arg name="z"          value="0.0"/>
+    <arg name="yaw"        value="0.0"/> <!-- Changed to 0, takeoff yaw is fixed anyway -->
+  </include>
+
+  <!-- Removed trajectory_plotter_node -->
+
+  <!-- Launch the CLF+ZCBF Controller Node using Straight Line Trajectory -->
+  <node pkg="clf_cbf_qp" type="main_straight.py"
+        name="clf_iris_trajectory_controller" output="screen">
+
+    <!-- General Parameters -->
+    <param name="namespace" value="$(arg namespace)" />
+    <param name="use_model_states" value="true" /> <!-- Use Gazebo ModelStates -->
+    <param name="control_rate" value="1000.0" />
+
+    <!-- Drone Physical Properties -->
+    <param name="mass" value="1.5" />
+    <param name="gravity" value="9.81" />
+    <param name="I_x" value="0.0348" />
+    <param name="I_y" value="0.0459" />
+    <param name="I_z" value="0.0977" />
+    <param name="motor_constant" value="8.54858e-06" />
+    <param name="moment_constant" value="1.3677728e-07" />
+    <param name="max_rot_velocity" value="838.0" />
+    <param name="min_thrust_factor" value="0.1" />
+    <param name="gravity_comp_factor" value="1.022" />
+    <param name="max_tilt_angle_deg" value="30.0" />
+    <param name="drone_radius" value="0.5" />
+
+    <param name="trajectory_start_point" value="[20.0, 10.0, 3.0]" /> <!-- Format: "[x, y, z]" -->
+    <param name="trajectory_end_point"   value="[-20.0, -10.0, 7.0]" /> <!-- Format: "[x, y, z]" -->
+    <param name="trajectory_duration"    value="40.0" /> <!-- Seconds -->
+    <param name="fixed_yaw_deg"          value="0.0" /> <!-- Yaw during Takeoff state -->
+
+    <param name="hover_pos_threshold" value="0.15" />
+    <param name="hover_vel_threshold" value="0.15" />
+    <param name="hover_stabilization_secs" value="5.0" />
+    <param name="hover_yaw_ramp_secs" value="2.5" />
+
+    <!-- Takeoff Gains -->
+    <param name="k_takepos1" value="0.12" />
+    <param name="k_takepos2" value="0.25" />
+    <param name="k_takeatt1" value="1.5" />
+    <param name="k_takeatt2" value="3.0" />
+    <!-- Trajectory Gains -->
+    <param name="k_trajpos1" value="1.2" />
+    <param name="k_trajpos2" value="5.0" />
+    <param name="k_trajatt1" value="8.0" />
+    <param name="k_trajatt2" value="16.0" />
+
+    <!-- Obstacle Definitions -->
+    <!-- Removed dynamic_obstacles parameter -->
+    <!-- <param name="dynamic_obstacles" value="[...]"/> -->
+    <!-- Static obstacles were only used by the removed plotter -->
+
+    <!-- ZCBF Parameters -->
+    <param name="zcbf_beta"   value="1.0" />
+    <param name="zcbf_a1"     value="0.5" />
+    <param name="zcbf_a2"     value="1.0" />
+    <param name="zcbf_gamma"  value="2.8" />
+    <param name="zcbf_kappa"  value="0.8" />
+    <param name="zcbf_order_a" value="0" />
+
+  </node>
+
+</launch>

@@ -1,0 +1,21 @@
+<launch>
+    <arg name="world_name" default="basic" doc="Name of the world file to load (e.g., basic, empty)"/>
+    <arg name="paused" default="false" doc="Start Gazebo paused"/>
+    <arg name="gui" default="true" doc="Start Gazebo GUI"/>
+    <arg name="debug" default="false"/>
+    <arg name="verbose" default="false"/>
+
+    <!-- Start Gazebo with the specified world -->
+    <include file="$(find gazebo_ros)/launch/empty_world.launch">
+        <!-- Use a world from your package or a standard one -->
+        <!-- Example using a world from your package: -->
+        <arg name="world_name" value="$(find clf_cbf_qp)/worlds/basic.world"/>
+        <!-- Or use a default Gazebo world: -->
+        <!-- <arg name="world_name" value="$(find gazebo_ros)/worlds/empty.world"/> -->
+
+        <arg name="paused" value="$(arg paused)"/>
+        <arg name="gui" value="$(arg gui)"/>
+        <arg name="debug" value="$(arg debug)"/>
+        <arg name="verbose" value="$(arg verbose)"/>
+    </include>
+</launch>

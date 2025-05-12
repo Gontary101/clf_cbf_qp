@@ -1,132 +1,102 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 from __future__ import division
-import math
-import numpy as np
-import ast
+import math, numpy as np, rospy, ast
 from dynamics_utils import pget
 
-class StraightLineTrajectory(object):
+class StraightLineTrajectory:
+
     def __init__(self):
-        self.omega = 0.5
-        self.yaw_fix = math.radians(pget("fixed_yaw_deg", 0.0))
+        try:
+            p0_str = pget("trajectory_start_point", "[0.0, 0.0, 3.0]")
+            self.p0_initial = np.array(ast.literal_eval(p0_str), dtype=float)
+            if self.p0_initial.shape != (3,):
+                raise ValueError("start_point must be a 3-element list/tuple.")
+        except (ValueError, SyntaxError) as e:
+            rospy.logwarn("Invalid trajectory_start_point '%s': %s. Using [0, 0, 3].", p0_str, e)
+            self.p0_initial = np.array([0.0, 0.0, 3.0])
 
-        default_xyz = [-20.0, -10.0, 7.0]
-        default_target = np.array(default_xyz, dtype=float)
+        try:
+            pf_str = pget("trajectory_end_point", "[10.0, 10.0, 5.0]")
+            self.pf_initial = np.array(ast.literal_eval(pf_str), dtype=float)
+            if self.pf_initial.shape != (3,):
+                raise ValueError("end_point must be a 3-element list/tuple.")
+        except (ValueError, SyntaxError) as e:
+            rospy.logwarn("Invalid trajectory_end_point '%s': %s. Using [10, 10, 5].", pf_str, e)
+            self.pf_initial = np.array([10.0, 10.0, 5.0])
 
-        target_param_val = pget("straight_line_target_xyz", default_xyz)
-        if isinstance(target_param_val, str):
-            try:
-                self.target_pos_world_final = np.array(
-                    ast.literal_eval(target_param_val), dtype=float
-                )
-            except (ValueError, SyntaxError):
-                self.target_pos_world_final = default_target
-        elif (
-            isinstance(target_param_val, list)
-            and len(target_param_val) == 3
-            and all(isinstance(n, (int, float)) for n in target_param_val)
-        ):
-            self.target_pos_world_final = np.array(target_param_val, dtype=float)
-        else:
-            self.target_pos_world_final = default_target
+        self.p0 = self.p0_initial.copy()
+        self.pf = self.pf_initial.copy()
 
-        if self.target_pos_world_final.shape != (3,):
-            self.target_pos_world_final = default_target
+        self.T = pget("trajectory_duration", 20.0)
+        if self.T <= 1e-6:
+            rospy.logwarn("Trajectory duration T=%.3f too small. Setting to 1.0.", self.T)
+            self.T = 1.0
 
-        # ------------------- start position config ----------------------
-        # allow overriding the start in world‐coords, with a sane default
-        default_start_xyz = [20.0, 10.0, 5.0]
-        default_start     = np.array(default_start_xyz, dtype=float)
-        # if no param given, fall back to our default_start_xyz
-        start_param_val = pget("straight_line_start_xyz", default_start_xyz)
-        if isinstance(start_param_val, str):
-            try:
-                self.start_pos_world_initial = np.array(
-                    ast.literal_eval(start_param_val), dtype=float
-                )
-            except (ValueError, SyntaxError):
-                self.start_pos_world_initial = default_start
-        elif (
-            isinstance(start_param_val, list)
-            and len(start_param_val) == 3
-            and all(isinstance(n, (int, float)) for n in start_param_val)
-        ):
-            self.start_pos_world_initial = np.array(start_param_val, dtype=float)
-        else:
-            # no user override → use the built-in default_start
-            self.start_pos_world_initial = default_start
+        self.yaw_fix_initial = math.radians(pget("fixed_yaw_deg", 0.0))
+        self.yaw_fix = self.yaw_fix_initial
 
-        # Helix parameters
-        self.r0_for_offset_calculation = 0.5 * pget("helix_start_diameter", 40.0)
-
-        # Placeholders for computed offsets and actuals
         self.xy_offset = None
         self.z_offset = None
-        self.actual_start_pos_world = None
-        self.actual_direction_vector_world = None
-        self.actual_total_distance_world = None
-        self.actual_unit_direction_vector_world = None
-        self.actual_total_duration = None
-        self._initialized_internals = False
 
-    def _initialize_internals_if_needed(self):
-        # if no explicit start override and offsets aren't set yet, wait
-        if self.start_pos_world_initial is None and (self.xy_offset is None or self.z_offset is None):
-            return 
+        self._update_trajectory_params()
 
-        if not self._initialized_internals:
-            if self.start_pos_world_initial is not None:
-                # use the user‐provided start in world frame
-                self.actual_start_pos_world = self.start_pos_world_initial
+    def _update_trajectory_params(self):
+        """Recalculates delta, velocity, and desired yaw based on current p0, pf."""
+        self.delta_p = self.pf - self.p0
+        delta_norm = np.linalg.norm(self.delta_p)
+
+        if delta_norm > 1e-6:
+            self.v_const = self.delta_p / self.T
+            self.psi_d = math.atan2(self.delta_p[1], self.delta_p[0])
+        else:
+            rospy.logwarn("Start and end points are the same. Velocity will be zero.")
+            self.v_const = np.zeros(3)
+            initial_delta = self.pf_initial - self.p0_initial
+            if np.linalg.norm(initial_delta) > 1e-6:
+                 self.psi_d = math.atan2(initial_delta[1], initial_delta[0])
             else:
-                # compute start from local frame + offsets
-                local_start_pos_traj_frame = np.array([self.r0_for_offset_calculation, 0.0, 0.0])
-                self.actual_start_pos_world = np.array([
-                    local_start_pos_traj_frame[0] + self.xy_offset[0],
-                    local_start_pos_traj_frame[1] + self.xy_offset[1],
-                    local_start_pos_traj_frame[2] + self.z_offset
-                ])
-            
-            self.actual_direction_vector_world = self.target_pos_world_final - self.actual_start_pos_world
-            self.actual_total_distance_world = np.linalg.norm(self.actual_direction_vector_world)
+                 self.psi_d = self.yaw_fix_initial
 
-            if self.actual_total_distance_world < 1e-6:
-                self.actual_unit_direction_vector_world = np.zeros(3)
-                self.actual_total_duration = 0.0
-            else:
-                self.actual_unit_direction_vector_world = self.actual_direction_vector_world / self.actual_total_distance_world
-                if self.omega <= 1e-6: 
-                    self.actual_total_duration = float('inf') 
-                else:
-                    self.actual_total_duration = self.actual_total_distance_world / self.omega
-            
-            self._initialized_internals = True
+        self.xy_offset = None
+        self.z_offset = None
+        rospy.loginfo("Trajectory params updated: p0=[%.1f,%.1f,%.1f], pf=[%.1f,%.1f,%.1f], psi_d=%.1f deg",
+                      self.p0[0], self.p0[1], self.p0[2],
+                      self.pf[0], self.pf[1], self.pf[2],
+                      math.degrees(self.psi_d))
+
+    def reverse(self):
+        """Swaps start and end points and recalculates trajectory parameters."""
+        rospy.loginfo("Reversing trajectory.")
+        p0_old = self.p0.copy()
+        self.p0 = self.pf.copy()
+        self.pf = p0_old
+        self._update_trajectory_params()
 
     def ref(self, t):
-        if not self._initialized_internals:
-            self._initialize_internals_if_needed()
+        """Calculates reference at time t along the current segment."""
+        frac = t / self.T
 
-        if not self._initialized_internals:
-            pos = np.array([self.r0_for_offset_calculation, 0.0, 0.0]) 
+        if frac >= 1.0:
+            pos_base = self.pf
             vel = np.zeros(3)
             acc = np.zeros(3)
+        elif frac < 0.0:
+             pos_base = self.p0
+             vel = np.zeros(3)
+             acc = np.zeros(3)
         else:
-            if t >= self.actual_total_duration or self.actual_total_distance_world < 1e-6:
-                pos = self.target_pos_world_final if self.actual_total_distance_world >= 1e-6 else self.actual_start_pos_world
-                vel = np.zeros(3)
-                acc = np.zeros(3)
-            elif self.omega <= 1e-6:
-                pos = self.actual_start_pos_world
-                vel = np.zeros(3)
-                acc = np.zeros(3)
-            else:
-                distance_covered = self.omega * t
-                pos = self.actual_start_pos_world + self.actual_unit_direction_vector_world * distance_covered
-                vel = self.actual_unit_direction_vector_world * self.omega
-                acc = np.zeros(3) 
+            pos_base = self.p0 + self.delta_p * frac
+            vel = self.v_const
+            acc = np.zeros(3)
 
-        psi_d = self.yaw_fix
+        pos = pos_base.copy()
+        if self.xy_offset is not None:
+            pos[:2] += self.xy_offset
+        if self.z_offset is not None:
+            pos[2] += self.z_offset
+
+        psi_d = self.psi_d
         rd = 0.0
 
         return pos, vel, acc, psi_d, rd
