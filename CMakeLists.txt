@@ -163,6 +163,19 @@ include_directories(
 #   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 # )
 
+catkin_install_python(PROGRAMS
+  src/modular/main.py
+  src/modular/main_straight.py
+  src/modular/main_multi_drone.py
+  src/modular/main_multi_drone_once.py
+  src/modular/utils/csv_recorder.py
+  src/modular/plotters/multi_straight_line_plotter.py
+  src/modular/utils/dynamics_utils.py
+  # If you have other python scripts in src/ or src/modular/ you want to install:
+  # src/helix_plotter.py  <-- Assuming this is also one you want to make available
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
 ## Mark executables and/or libraries for installation
 # install(TARGETS ${PROJECT_NAME} ${PROJECT_NAME}_node
 #   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}

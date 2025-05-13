@@ -1,13 +1,13 @@
 <launch>
   <arg name="namespace"                 default="iris"/>
   <arg name="world_name"                default="basic"/>
-  <arg name="paused"                    default="false"/>
+  <arg name="paused"                    default="true"/>
   <arg name="gui"                       default="true"/>
   <arg name="debug"                     default="false"/>
   <arg name="verbose"                   default="false"/>
   <!-- Removed unused arg: use_model_states_for_control -->
 
-  <include file="$(find clf_cbf_qp)/launch/spawn_rotors_iris.launch">
+  <include file="$(find clf_cbf_qp)/launch/spawn_rotors_iris_rev.launch">
     <arg name="namespace" value="$(arg namespace)"/>
     <arg name="world_name" value="$(arg world_name)"/>
     <arg name="paused"     value="$(arg paused)"/>
@@ -17,7 +17,7 @@
     <arg name="x"          value="20.0"/> <!-- Initial X position matches takeoff_x -->
     <arg name="y"          value="0.0"/>
     <arg name="z"          value="0.1"/>
-    <arg name="yaw"        value="0.0"/>
+    <arg name="yaw"        value="1.57079633"/>
   </include>
 
 
@@ -46,13 +46,13 @@
   </node>
 
   <!-- Launch the new Full Dynamics ZCBF Controller Node -->
-  <node pkg="clf_cbf_qp" type="zcbf.py"
+  <node pkg="clf_cbf_qp" type="main_dynamic_obstacles.py"
         name="clf_iris_trajectory_controller" output="screen"> <!-- Keep name consistent -->
 
     <!-- General Parameters -->
     <param name="namespace" value="$(arg namespace)" />
     <param name="use_model_states" value="true" /> <!-- Set true if using Gazebo ModelStates, false for /ground_truth/odometry -->
-    <param name="control_rate" value="100.0" />
+    <param name="control_rate" value="1000.0" />
 
     <!-- Drone Physical Properties -->
     <param name="mass" value="1.5" />
@@ -74,26 +74,26 @@
     <param name="helix_height" value="30.0" />
     <param name="helix_laps" value="4.0" />
     <param name="trajectory_omega" value="0.07" />
-    <param name="fixed_yaw_deg" value="0.0" />
+    <param name="fixed_yaw_deg" value="90" />
 
     <!-- Takeoff/Hover Parameters -->
     <param name="takeoff_x" value="20.0" /> 
     <param name="takeoff_y" value="0.0" />  
     <param name="takeoff_height" value="3.0" />
     <param name="hover_pos_threshold" value="0.15" />
-    <param name="hover_vel_threshold" value="0.1" />
-    <param name="hover_stabilization_secs" value="2.0" />
+    <param name="hover_vel_threshold" value="0.15" />
+    <param name="hover_stabilization_secs" value="1.0" />
 
     <!-- Takeoff Gains -->
-    <param name="k_takepos1" value="0.22" />
-    <param name="k_takepos2" value="0.8" />
+    <param name="k_takepos1" value="0.12" />
+    <param name="k_takepos2" value="0.25" />
     <param name="k_takeatt1" value="2.05" />
     <param name="k_takeatt2" value="4.1" />
     <!-- Trajectory Gains -->
-    <param name="k_trajpos1" value="1.5" />
-    <param name="k_trajpos2" value="5.5" />
-    <param name="k_trajatt1" value="16.0" />
-    <param name="k_trajatt2" value="32.0" />
+    <param name="k_trajpos1" value="1.2" />
+    <param name="k_trajpos2" value="5.0" />
+    <param name="k_trajatt1" value="8.0" />
+    <param name="k_trajatt2" value="16.0" />
 
     <!-- Obstacle Definitions -->
     
@@ -101,11 +101,11 @@
             value="[[-8.96, -15.52, 8.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], [-7.92, 13.71, 13.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], [-5.83, -10.1, 23.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], [-4.79, 8.3, 28.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], [-0.026, 19.6, 4.875, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], [-4.8, 17.093, 5.248, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]]" /> 
 
     <!-- (ZCBF) Parameters -->
-    <param name="zcbf_beta"   value="1.0" />    
-    <param name="zcbf_a1"     value="0.2" />    
-    <param name="zcbf_a2"     value="1.0" />   
-    <param name="zcbf_gamma"  value="2.4" />    
-    <param name="zcbf_kappa"  value="1.0" />   
+    <param name="zcbf_beta"   value="1.5" />    
+    <param name="zcbf_a1"     value="1.5" />    
+    <param name="zcbf_a2"     value="1.1" />   
+    <param name="zcbf_gamma"  value="4.0" />    
+    <param name="zcbf_kappa"  value="1.2" />   
     <param name="zcbf_order_a" value="0" />    
 
 

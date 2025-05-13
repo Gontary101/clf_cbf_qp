@@ -14,7 +14,7 @@
   <joint name="${namespace}/third_person_camera_joint" type="fixed">
     <parent link="${namespace}/base_link"/>
     <child link="${namespace}/third_person_camera_link"/>
-    <origin xyz="2.0 0 0.6" rpy="0 0 3.14"/>
+    <origin xyz="-2.0 0 0.6" rpy="0 0 0"/>
   </joint>
 
   <link name="${namespace}/third_person_camera_optical_frame" />
@@ -39,7 +39,8 @@
       </camera>
       <plugin name="third_person_cam_plugin" filename="libgazebo_ros_camera.so">
         <alwaysOn>true</alwaysOn>
-        <cameraName>third_person_cam</cameraName>
+        <robotNamespace>$(arg namespace)</robotNamespace>
+        <cameraName>$(arg namespace)/third_person_cam</cameraName>
         <imageTopicName>image_raw</imageTopicName>
         <cameraInfoTopicName>camera_info</cameraInfoTopicName>
         <frameName>${namespace}/third_person_camera_optical_frame</frameName>
