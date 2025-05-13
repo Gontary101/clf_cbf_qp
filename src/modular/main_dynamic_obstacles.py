@@ -118,6 +118,8 @@ class Controller(object):
 
         if self.use_gz:
             from gazebo_msgs.msg import ModelStates
+            # store full model_states for obstacle parsing
+            self.model_states = None
             self.sub = rospy.Subscriber("/gazebo/model_states",
                                         ModelStates, self.cb_model,
                                         queue_size=5, buff_size=2**24)
@@ -208,7 +210,10 @@ class Controller(object):
     # ------------------------------------------------ subscriber callbacks --
     def cb_odom(self, msg):   self.last = msg
     def cb_model(self, msg):
-        try: idx = msg.name.index(self.ns)
+        # stash the full message for dynamic‐obstacle updates
+        self.model_states = msg
+        try:
+            idx = msg.name.index(self.ns)
         except ValueError:
             try: idx = msg.name.index(self.ns + "/")
             except ValueError: return
@@ -221,6 +226,28 @@ class Controller(object):
 
     # ------------------------------------------------ main control loop -----
     def loop(self, _evt):
+        # --- rebuild dynamic obstacle list each iteration from Gazebo ---
+        if self.use_gz and getattr(self, 'model_states', None):
+            obs_list = []
+            for name, pose, twist in zip(self.model_states.name,
+                                         self.model_states.pose,
+                                         self.model_states.twist):
+                if name.startswith('sphere_obstacle_'):
+                    x, y, z = (pose.position.x,
+                               pose.position.y,
+                               pose.position.z)
+                    vx, vy, vz = (twist.linear.x,
+                                  twist.linear.y,
+                                  twist.linear.z)
+                    # no accel in ModelStates → zero
+                    ax = ay = az = 0.0
+                    # sphere radius
+                    r = 1.0
+                    obs_list.append([x, y, z, vx, vy, vz, ax, ay, az, r])
+            if obs_list:
+                self.obs = np.array(obs_list, dtype=float)
+                self.zcbf.obs = self.obs
+
         if self.last is None:
             return
         now = rospy.Time.now()

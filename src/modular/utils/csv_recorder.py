@@ -6,7 +6,7 @@ import csv
 import os
 import math
 from datetime import datetime
-from std_msgs.msg import String, Float64MultiArray
+from std_msgs.msg import String, Float64, Float64MultiArray
 from geometry_msgs.msg import Point, Vector3
 from nav_msgs.msg import Odometry # Assuming we might want raw odometry too
 
@@ -43,7 +43,11 @@ class CsvRecorder(object):
             'des_acc_x': float('nan'), 'des_acc_y': float('nan'), 'des_acc_z': float('nan'),
             'des_att_phi_deg': float('nan'), 'des_att_theta_deg': float('nan'), 'des_att_psi_deg': float('nan'),
             'virt_inp_Uex': float('nan'), 'virt_inp_Uey': float('nan'),
-            'cbf_slack_0': float('nan') # Example for first slack variable
+            'cbf_slack_0': float('nan'),  # Example for first slack variable
+            # add intermediate‐gamma entries
+            'gamma1'   : float('nan'),
+            'gamma2_0' : float('nan'), 'gamma2_1': float('nan'), 'gamma2_2': float('nan'),
+            'gamma3'   : float('nan')
         }
         self.csv_headers = self.latest_data.keys()
         self.csv_headers.sort() # Ensure consistent column order
@@ -85,6 +89,10 @@ class CsvRecorder(object):
         rospy.Subscriber(get_topic("control/desired_attitude_deg"), Point, self._des_att_cb)
         rospy.Subscriber(get_topic("control/virtual_inputs"), Point, self._virt_inp_cb)
         rospy.Subscriber(get_topic("cbf/slack"), Float64MultiArray, self._cbf_slack_cb) # Note: CBF path might be different
+        # --- Subscribe to intermediate‐gamma topics ---
+        rospy.Subscriber(get_topic("gamma1"), Float64, self._gamma1_cb)
+        rospy.Subscriber(get_topic("gamma2"), Float64MultiArray, self._gamma2_cb)
+        rospy.Subscriber(get_topic("gamma3"), Float64, self._gamma3_cb)
 
         # --- Timer for logging ---
         self.log_timer = rospy.Timer(rospy.Duration(self.log_period), self._log_data_callback)
@@ -189,6 +197,21 @@ class CsvRecorder(object):
     def _cbf_slack_cb(self, msg):
         if len(msg.data) > 0:
             self._update_data('cbf_slack_0', msg.data[0])
+
+    def _gamma1_cb(self, msg):
+        """Store scalar gamma1."""
+        self._update_data('gamma1', msg.data)
+
+    def _gamma2_cb(self, msg):
+        """Store vector gamma2 into three separate fields."""
+        if len(msg.data) >= 3:
+            self._update_data('gamma2_0', msg.data[0])
+            self._update_data('gamma2_1', msg.data[1])
+            self._update_data('gamma2_2', msg.data[2])
+
+    def _gamma3_cb(self, msg):
+        """Store scalar gamma3."""
+        self._update_data('gamma3', msg.data)
 
     def _log_data_callback(self, event=None):
         """Called periodically by the timer to write data."""

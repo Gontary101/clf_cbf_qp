@@ -170,6 +170,7 @@ catkin_install_python(PROGRAMS
   src/modular/main_multi_drone_once.py
   src/modular/utils/csv_recorder.py
   src/modular/plotters/multi_straight_line_plotter.py
+  src/modular/utils/dynamics_utils.py
   # If you have other python scripts in src/ or src/modular/ you want to install:
   # src/helix_plotter.py  <-- Assuming this is also one you want to make available
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}

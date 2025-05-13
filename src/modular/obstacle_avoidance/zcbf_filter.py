@@ -3,8 +3,8 @@
 from __future__ import division
 import math, numpy as np, rospy
 from cvxopt import matrix, solvers
-from std_msgs.msg import Float64MultiArray
-from dynamics_utils import e3_world, e3_body
+from std_msgs.msg import Float64, Float64MultiArray
+from utils.dynamics_utils import e3_world, e3_body
 
 solvers.options['show_progress'] = False
 clip = np.clip
@@ -23,6 +23,12 @@ class ZCBFFilter(object):
         self.kappa = params.get("zcbf_kappa",  1.0)
         self.a     = params.get("zcbf_order_a", 0)
         self.pub   = cbf_pub   # may be None
+        # Initialize publishers with absolute topic names
+        #self.gamma1_pub = rospy.Publisher('/clf_iris_trajectory_controller/gamma1', Float64, queue_size=1)
+        #self.gamma2_pub = rospy.Publisher('/clf_iris_trajectory_controller/gamma2', Float64MultiArray, queue_size=1)
+        #self.gamma3_pub = rospy.Publisher('/clf_iris_trajectory_controller/gamma3', Float64, queue_size=1)
+        # Wait for publishers to be ready
+        rospy.sleep(0.1)  # Give ROS time to set up publishers
 
     # ----------------------------------------------------------------------
     def filter(self, mode, U_nom, state, _extra):
@@ -95,6 +101,10 @@ class ZCBFFilter(object):
 
             Gamma3 = (term1 + term2 + term3 + term4 +
                       term5 + term6 + term7 + term8 + term9)
+
+            #self.gamma1_pub.publish(Float64(Gamma1))
+            #self.gamma2_pub.publish(Float64MultiArray(data=Gamma2_vec.tolist()))
+            #self.gamma3_pub.publish(Float64(Gamma3))
 
             G_row   = np.hstack([Gamma1, Gamma2_vec])
             h_value = Gamma3 + self.kappa * (h_val ** (2 * self.a + 1))

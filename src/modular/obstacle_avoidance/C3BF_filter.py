@@ -18,7 +18,7 @@ import math, numpy as np, rospy
 from cvxopt import matrix, solvers
 from std_msgs.msg import Float64MultiArray
 
-from dynamics_utils import pget
+from utils.dynamics_utils import pget
 from clf_backstepping import CLFBackstepping
 
 solvers.options['show_progress'] = False

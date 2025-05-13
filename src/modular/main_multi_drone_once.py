@@ -8,13 +8,14 @@ from mav_msgs.msg import Actuators
 from geometry_msgs.msg import Point, Vector3, Pose, Twist
 from std_msgs.msg import Float64MultiArray, String
 from tf.transformations import euler_from_quaternion
-from gazebo_msgs.msg import ModelStates # Needed for multi-drone state sharing
+from gazebo_msgs.msg import ModelStates 
 
 from trajectory.straight_line import StraightLineTrajectory
-import dynamics_utils as dyn
-from dynamics_utils import pget, rotation_matrix
+import utils.dynamics_utils as dyn
+from utils.dynamics_utils import pget, rotation_matrix
 from clf_backstepping import CLFBackstepping
 from obstacle_avoidance.zcbf_filter     import ZCBFFilter as SAFETYFilter
+#from obstacle_avoidance.C3BF_filter import C3BFFilter as SAFETYFilter
 
 LOG_T = 1.0
 DBG   = True

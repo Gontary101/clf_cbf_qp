@@ -3,13 +3,11 @@
 from __future__ import unicode_literals
 from __future__ import division
 
-# **MUST** call XInitThreads at the VERY beginning before ANY other imports:
 import ctypes
 ctypes.CDLL('libX11.so', ctypes.RTLD_GLOBAL).XInitThreads()
 
 import rospy, os, math, datetime, numpy as np
 import matplotlib
-# Use non-interactive backend by default to avoid X11 issues
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 import matplotlib.widgets as mwidgets
@@ -65,7 +63,7 @@ class Plotter(object):
         self.fw_w,self.fp_w = pget("filter_window_omega",31),pget("filter_polyorder_omega",3)
         self.fw_t,self.fp_t = pget("filter_window_thrust",31),pget("filter_polyorder_thrust",3)
         self.use_filt= pget("use_filtering",True)
-        self.run_T   = pget("run_duration_secs",250.0)
+        self.run_T   = pget("run_duration_secs",400.0)
         self.takeoff_duration = pget("takeoff_duration", 5.0)  # Duration of takeoff phase in seconds
         self.hover_duration = pget("hover_duration", 5.0)      # Duration of hover phase in seconds
 

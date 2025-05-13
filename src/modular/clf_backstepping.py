@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import division
 import math, numpy as np
-from dynamics_utils import e3_body  # only for completeness
+from utils.dynamics_utils import e3_body  # only for completeness
 
 class CLFBackstepping(object):
     """Nominal controller (back‑stepping / CLF) – ROS‑agnostic."""

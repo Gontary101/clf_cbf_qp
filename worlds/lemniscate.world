@@ -1,6 +1,10 @@
 <?xml version="1.0" ?>
 <sdf version="1.4">
   <world name="default">
+    <scene>
+      <shadows>false</shadows>
+      <grid>false</grid>
+    </scene>
     <include>
       <uri>model://ground_plane</uri>
     </include>
@@ -33,24 +37,25 @@
           <contact_surface_layer>0.001</contact_surface_layer>
         </constraints>
       </ode>
-      <max_step_size>0.01</max_step_size>
-      <real_time_factor>1</real_time_factor>
-      <real_time_update_rate>100</real_time_update_rate>
+      <max_step_size>0.005</max_step_size>
+      <real_time_factor>0</real_time_factor>
+      <real_time_update_rate>5000</real_time_update_rate>
       <gravity>0 0 -9.81</gravity>
     </physics>
 
     <model name='sphere_obstacle_5'> <!-- Green -->
-      <static>true</static>
+      <static>false</static>
       <pose>-0.026 19.60 4.875 0 0 0</pose>
       <link name='link'>
+        <kinematic>true</kinematic>
         <collision name='collision'>
           <geometry>
-            <sphere><radius>1.00</radius></sphere>
+            <sphere><radius>0.6</radius></sphere>
           </geometry>
         </collision>
         <visual name='visual'>
           <geometry>
-            <sphere><radius>1.00</radius></sphere>
+            <sphere><radius>0.6</radius></sphere>
           </geometry>
           <material>
             <script>
@@ -60,20 +65,28 @@
           </material>
         </visual>
       </link>
+      <plugin name="circle_motion" filename="libcircle_motion_plugin.so">
+        <center_x>0.0</center_x>
+        <center_y>0.0</center_y>
+        <center_z>4.875</center_z>
+        <radius>19.6000</radius>
+        <speed>0.0</speed>
+      </plugin>
     </model>
 
     <model name='sphere_obstacle_6'> <!-- White -->
-      <static>true</static>
+      <static>false</static>
       <pose>-4.8 17.093 5.248 0 0 0</pose>
       <link name='link'>
+        <kinematic>true</kinematic>
         <collision name='collision'>
           <geometry>
-            <sphere><radius>1.00</radius></sphere>
+            <sphere><radius>0.6</radius></sphere>
           </geometry>
         </collision>
         <visual name='visual'>
           <geometry>
-            <sphere><radius>1.00</radius></sphere>
+            <sphere><radius>0.6</radius></sphere>
           </geometry>
           <material>
             <script>
@@ -83,21 +96,28 @@
           </material>
         </visual>
       </link>
+      <plugin name="circle_motion" filename="libcircle_motion_plugin.so">
+        <center_x>0.0</center_x>
+        <center_y>0.0</center_y>
+        <center_z>5.248</center_z>
+        <radius>17.7541</radius>
+        <speed>0.0</speed>
+      </plugin>
     </model>
 
-    <!-- New Obstacle Between 6 and 0 -->
     <model name='sphere_obstacle_7'> <!-- Orange -->
-      <static>true</static>
-      <pose>-16.42 8.88 6.17 0 0 0</pose> <!-- x y z roll pitch yaw -->
+      <static>false</static>
+      <pose>-16.42 8.88 6.17 0 0 0</pose>
       <link name='link'>
+        <kinematic>true</kinematic>
         <collision name='collision'>
           <geometry>
-            <sphere><radius>1.00</radius></sphere>
+            <sphere><radius>0.6</radius></sphere>
           </geometry>
         </collision>
         <visual name='visual'>
           <geometry>
-            <sphere><radius>1.00</radius></sphere>
+            <sphere><radius>0.6</radius></sphere>
           </geometry>
           <material>
             <script>
@@ -107,21 +127,28 @@
           </material>
         </visual>
       </link>
+      <plugin name="circle_motion" filename="libcircle_motion_plugin.so">
+        <center_x>0.0</center_x>
+        <center_y>0.0</center_y>
+        <center_z>6.17</center_z>
+        <radius>18.6674</radius>
+        <speed>0.0</speed>
+      </plugin>
     </model>
 
-    <!-- New Obstacle Between 6 and 0 -->
     <model name='sphere_obstacle_8'> <!-- Pink -->
-      <static>true</static>
-      <pose>-17.84 -3.37 7.08 0 0 0</pose> <!-- x y z roll pitch yaw -->
+      <static>false</static>
+      <pose>-17.84 -3.37 7.08 0 0 0</pose>
       <link name='link'>
+        <kinematic>true</kinematic>
         <collision name='collision'>
           <geometry>
-            <sphere><radius>1.00</radius></sphere>
+            <sphere><radius>0.6</radius></sphere>
           </geometry>
         </collision>
         <visual name='visual'>
           <geometry>
-            <sphere><radius>1.00</radius></sphere>
+            <sphere><radius>0.6</radius></sphere>
           </geometry>
           <material>
             <script>
@@ -131,44 +158,59 @@
           </material>
         </visual>
       </link>
+      <plugin name="circle_motion" filename="libcircle_motion_plugin.so">
+        <center_x>0.0</center_x>
+        <center_y>0.0</center_y>
+        <center_z>7.08</center_z>
+        <radius>18.1555</radius>
+        <speed>0.0</speed>
+      </plugin>
     </model>
 
     <model name='sphere_obstacle_0'> <!-- Red -->
-      <static>true</static>
-      <pose>-8.96 -15.52 8.00 0 0 0</pose> <!-- x y z roll pitch yaw -->
+      <static>false</static>
+      <pose>-8.96 -15.52 8.00 0 0 0</pose>
       <link name='link'>
+        <kinematic>true</kinematic>
         <collision name='collision'>
           <geometry>
-            <sphere><radius>1.00</radius></sphere>
+            <sphere><radius>0.6</radius></sphere>
           </geometry>
         </collision>
         <visual name='visual'>
           <geometry>
-            <sphere><radius>1.00</radius></sphere>
+            <sphere><radius>0.6</radius></sphere>
           </geometry>
           <material>
             <script>
               <uri>file://media/materials/scripts/gazebo.material</uri>
-              <name>Gazebo/Red</name> <!-- Make them visible -->
+              <name>Gazebo/Red</name>
             </script>
           </material>
         </visual>
       </link>
+      <plugin name="circle_motion" filename="libcircle_motion_plugin.so">
+        <center_x>0.0</center_x>
+        <center_y>0.0</center_y>
+        <center_z>8.00</center_z>
+        <radius>17.9207</radius>
+        <speed>0.0</speed>
+      </plugin>
     </model>
 
-    <!-- New Obstacle After 0 (Lap 1) -->
     <model name='sphere_obstacle_9'> <!-- Cyan -->
-      <static>true</static>
-      <pose>2.95 -17.31 8.83 0 0 0</pose> <!-- x y z roll pitch yaw -->
+      <static>false</static>
+      <pose>2.95 -17.31 8.83 0 0 0</pose>
       <link name='link'>
+        <kinematic>true</kinematic>
         <collision name='collision'>
           <geometry>
-            <sphere><radius>1.00</radius></sphere>
+            <sphere><radius>0.6</radius></sphere>
           </geometry>
         </collision>
         <visual name='visual'>
           <geometry>
-            <sphere><radius>1.00</radius></sphere>
+            <sphere><radius>0.6</radius></sphere>
           </geometry>
           <material>
             <script>
@@ -178,21 +220,28 @@
           </material>
         </visual>
       </link>
+      <plugin name="circle_motion" filename="libcircle_motion_plugin.so">
+        <center_x>0.0</center_x>
+        <center_y>0.0</center_y>
+        <center_z>8.83</center_z>
+        <radius>17.5596</radius>
+        <speed>0.0</speed>
+      </plugin>
     </model>
 
-    <!-- New Obstacle After 0 (Lap 1) -->
     <model name='sphere_obstacle_10'> <!-- Grey -->
-      <static>true</static>
-      <pose>13.13 -11.16 9.66 0 0 0</pose> <!-- x y z roll pitch yaw -->
+      <static>false</static>
+      <pose>13.13 -11.16 9.66 0 0 0</pose>
       <link name='link'>
+        <kinematic>true</kinematic>
         <collision name='collision'>
           <geometry>
-            <sphere><radius>1.00</radius></sphere>
+            <sphere><radius>0.6</radius></sphere>
           </geometry>
         </collision>
         <visual name='visual'>
           <geometry>
-            <sphere><radius>1.00</radius></sphere>
+            <sphere><radius>0.6</radius></sphere>
           </geometry>
           <material>
             <script>
@@ -202,20 +251,28 @@
           </material>
         </visual>
       </link>
+      <plugin name="circle_motion" filename="libcircle_motion_plugin.so">
+        <center_x>0.0</center_x>
+        <center_y>0.0</center_y>
+        <center_z>9.66</center_z>
+        <radius>17.2320</radius>
+        <speed>0.0</speed>
+      </plugin>
     </model>
 
     <model name='sphere_obstacle_1'> <!-- Blue -->
-      <static>true</static>
+      <static>false</static>
       <pose>-7.92 13.71 13.00 0 0 0</pose>
       <link name='link'>
+        <kinematic>true</kinematic>
         <collision name='collision'>
           <geometry>
-            <sphere><radius>1.00</radius></sphere>
+            <sphere><radius>0.6</radius></sphere>
           </geometry>
         </collision>
         <visual name='visual'>
           <geometry>
-            <sphere><radius>1.00</radius></sphere>
+            <sphere><radius>0.6</radius></sphere>
           </geometry>
           <material>
             <script>
@@ -225,20 +282,28 @@
           </material>
         </visual>
       </link>
+      <plugin name="circle_motion" filename="libcircle_motion_plugin.so">
+        <center_x>0.0</center_x>
+        <center_y>0.0</center_y>
+        <center_z>13.00</center_z>
+        <radius>15.8332</radius>
+        <speed>0.0</speed>
+      </plugin>
     </model>
 
     <model name='sphere_obstacle_3'> <!-- Yellow -->
-      <static>true</static>
+      <static>false</static>
       <pose>-5.83 -10.10 23.00 0 0 0</pose>
       <link name='link'>
+        <kinematic>true</kinematic>
         <collision name='collision'>
           <geometry>
-            <sphere><radius>1.00</radius></sphere>
+            <sphere><radius>0.6</radius></sphere>
           </geometry>
         </collision>
         <visual name='visual'>
           <geometry>
-            <sphere><radius>1.00</radius></sphere>
+            <sphere><radius>0.6</radius></sphere>
           </geometry>
           <material>
             <script>
@@ -248,20 +313,28 @@
           </material>
         </visual>
       </link>
+      <plugin name="circle_motion" filename="libcircle_motion_plugin.so">
+        <center_x>0.0</center_x>
+        <center_y>0.0</center_y>
+        <center_z>23.00</center_z>
+        <radius>11.6619</radius>
+        <speed>0.0</speed>
+      </plugin>
     </model>
 
     <model name='sphere_obstacle_4'> <!-- Purple -->
-      <static>true</static>
+      <static>false</static>
       <pose>-4.79 8.30 28.00 0 0 0</pose>
       <link name='link'>
+        <kinematic>true</kinematic>
         <collision name='collision'>
           <geometry>
-            <sphere><radius>1.00</radius></sphere>
+            <sphere><radius>0.6</radius></sphere>
           </geometry>
         </collision>
         <visual name='visual'>
           <geometry>
-            <sphere><radius>1.00</radius></sphere>
+            <sphere><radius>0.6</radius></sphere>
           </geometry>
           <material>
             <script>
@@ -271,6 +344,13 @@
           </material>
         </visual>
       </link>
+      <plugin name="circle_motion" filename="libcircle_motion_plugin.so">
+        <center_x>0.0</center_x>
+        <center_y>0.0</center_y>
+        <center_z>28.00</center_z>
+        <radius>9.5830</radius>
+        <speed>0.0</speed>
+      </plugin>
     </model>
 
  </world>
