@@ -52,6 +52,7 @@ clf_backstepping.pyc
 dynamics_utils.pyc
 ecbf_forms_filter.pyc
 zcbf_filter.pyc
+cleanup.py
 
 # Ignore all Python compiled files
 *.pyc
