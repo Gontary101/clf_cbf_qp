@@ -183,4 +183,22 @@
     </node>
   </group>
 
+  <!-- Multi-Drone Trajectory Plotter Node -->
+  <node pkg="clf_cbf_qp" type="multi_straight_line_plotter.py" name="multi_drone_trajectory_plotter" output="screen">
+    <param name="all_drone_namespaces" value="$(arg drone_namespaces_list)"/>
+    <param name="plot_save_dir" value="$(find clf_cbf_qp)/plots"/>
+    <param name="run_duration_secs" value="60.0"/>
+    <param name="common_trajectory_duration" value="$(arg trajectory_duration_common)"/>
+    <param name="use_filtering" value="true"/>
+    <param name="filter_window_odom" value="31"/>
+    <param name="filter_polyorder_odom" value="3"/>
+    <param name="filter_window_omega" value="21"/>
+    <param name="filter_polyorder_omega" value="3"/>
+    <param name="filter_window_thrust" value="21"/>
+    <param name="filter_polyorder_thrust" value="3"/>
+    <param name="min_omega" value="0.0"/>
+    <param name="max_omega" value="1000.0"/>
+    <param name="static_obstacles" value="$(arg dynamic_obstacles_common)" />
+  </node>
+
 </launch>

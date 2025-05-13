@@ -1,6 +1,9 @@
 # Ignore plots directory
 plots/
 
+# Ignore logs directory
+logs/
+
 # Ignore meshes directory
 meshes/
 
@@ -49,3 +52,14 @@ clf_backstepping.pyc
 dynamics_utils.pyc
 ecbf_forms_filter.pyc
 zcbf_filter.pyc
+
+# Ignore all Python compiled files
+*.pyc
+
+# Ignore all PNG files
+*.png
+
+# Ignore all log files
+*.log
+
+

@@ -21,10 +21,7 @@ class CsvRecorder(object):
         self.filename = os.path.join(self.output_dir, '{}_{}.csv'.format(base_filename, timestamp))
         self.log_period = rospy.get_param('~log_period', 0.5) # Log every 0.5 seconds by default
 
-        # --- Controller Node Name (adjust if different) ---
-        # It's slightly better to get this from a param if possible,
-        # but hardcoding based on your rostopic list is okay for now.
-        self.controller_node_name = "/clf_iris_trajectory_controller" # <-- From rostopic list
+        self.controller_node_name = "/clf_iris_trajectory_controller"
 
         # --- State Storage ---
         self.latest_data = {
@@ -201,7 +198,18 @@ class CsvRecorder(object):
         """Gathers the latest data and writes it to the CSV file."""
         if self.csv_writer:
             self.latest_data['timestamp'] = rospy.Time.now().to_sec()
-            row = [self.latest_data.get(h, '') for h in self.csv_headers]
+            # build formatted row: zero out small values (<10e-6) and format floats to 4 decimals
+            row = []
+            for h in self.csv_headers:
+                v = self.latest_data.get(h, '')
+                if isinstance(v, float):
+                    # approximate very small values to zero
+                    if abs(v) < 10e-6:
+                        v = 0.0
+                    formatted = "{:.4f}".format(v)
+                else:
+                    formatted = v
+                row.append(formatted)
             try:
                 self.csv_writer.writerow(row)
             except Exception as e:
