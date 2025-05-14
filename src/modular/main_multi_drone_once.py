@@ -18,7 +18,7 @@ from obstacle_avoidance.zcbf_filter     import ZCBFFilter as SAFETYFilter
 #from obstacle_avoidance.C3BF_filter import C3BFFilter as SAFETYFilter
 
 LOG_T = 1.0
-DBG   = True
+DBG   = False
 
 class State(Enum):
     TAKEOFF = 1

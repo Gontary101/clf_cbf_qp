@@ -7,14 +7,14 @@ import math, numpy as np, rospy
 from cvxopt import matrix, solvers
 from std_msgs.msg import Float64MultiArray
 
-from utils.dynamics_utils import pget
+from utils.dynamics_utils2 import pget
 from clf_backstepping import CLFBackstepping
 
 solvers.options['show_progress'] = False
 
 # ---------------------------------------------------------------------------
 
-EPS = 1e-2          # tiny number to avoid division by zero
+EPS = 1e-3
 clip = np.clip
 rt   = np.sqrt
 dot  = np.dot
@@ -108,7 +108,7 @@ class C3BFFilter(object):
             safe_div = s / (rho + EPS)
             Lfh  = s2 + safe_div * p_dot_v
             Lgh  = p_rel + v_rel * (rho / (s + EPS))
-            Lf_bar = Lfh - g * Lgh[2]
+            Lf_bar = Lfh - g * p_rel[2]
             Lg_bar = Lgh / m                           # ∂h/∂F
 
             G_rows.append(-Lg_bar)                    # −Lg F ≤ …
@@ -118,10 +118,7 @@ class C3BFFilter(object):
             return None, None, h_dbg
 
         # collective thrust upper bound (no slack variable here)
-        G_rows.append([0.0, 0.0,  1.0])
-        h_vals.append(self.Fz_max)
-        G_rows.append(np.array([0.0, 0.0, -1.0]))
-        h_vals.append(self.Fz_min)
+
         return matrix(np.vstack(G_rows)), matrix(np.array(h_vals)), h_dbg
 
     # ----------------------------------------------------------------------

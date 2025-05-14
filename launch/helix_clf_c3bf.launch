@@ -103,16 +103,12 @@
     <param name="k_trajatt2" value="16.0" />
 
     <!-- CBF Parameters -->
-    <param name="cbf_gamma" value="100.0"/>
+    <param name="cbf_gamma" value="300.0"/>
     <param name="drone_radius" value="0.5" />
 
     <!-- Control Loop Rate -->
     <param name="control_rate" value="1000.0" />
 
   </node>
-  <node pkg="clf_cbf_qp" type="csv_recorder.py" name="csv_recorder" output="screen">
-        <!-- Optional: Specify output directory and filename prefix -->
-        <param name="output_dir" value="$(find clf_cbf_qp)/logs"/> 
-        <param name="filename" value="flight_data"/>
-    </node>
+
 </launch>

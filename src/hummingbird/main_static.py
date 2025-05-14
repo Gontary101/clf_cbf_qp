@@ -10,8 +10,8 @@ from std_msgs.msg import Float64MultiArray, String
 from tf.transformations import euler_from_quaternion
 from trajectory.helix import HelixTrajectory
 # --- local helpers -----------------------------------------------------------
-import utils.dynamics_utils as dyn
-from utils.dynamics_utils import pget, rotation_matrix 
+import utils.dynamics_utils2 as dyn
+from utils.dynamics_utils2 import pget, rotation_matrix 
 from clf_backstepping import CLFBackstepping
 #from obstacle_avoidance.zcbf_filter     import ZCBFFilter as SAFETYFilter
 #from obstacle_avoidance.ecbf_forms_filter import ECBFFormsFilter as SAFETYFilter
@@ -35,7 +35,7 @@ class Controller(object):
     # ------------------------------------------------------------------ init -
     def __init__(self):
         # ------------- generic / namespace ----------------------------------
-        ns          = pget("namespace", "iris")
+        ns          = pget("namespace", "hummingbird")
         self.ns     = ns
         self.use_gz = pget("use_model_states", False)
 
@@ -358,7 +358,7 @@ class Controller(object):
 
 # ------------------------------------------------------------------- main ---
 if __name__ == "__main__":
-    rospy.init_node("clf_iris_trajectory_controller", anonymous=True)
+    rospy.init_node("clf_hummingbird_trajectory_controller", anonymous=True)
     try:
         Controller()
         rospy.spin()

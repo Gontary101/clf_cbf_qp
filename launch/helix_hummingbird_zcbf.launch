@@ -1,0 +1,109 @@
+<launch>
+  <arg name="namespace"                 default="hummingbird"/>
+  <arg name="world_name"                default="basic"/>
+  <arg name="paused"                    default="true"/>
+  <arg name="gui"                       default="true"/>
+  <arg name="debug"                     default="false"/>
+  <arg name="verbose"                   default="false"/>
+
+  <include file="$(find clf_cbf_qp)/launch/spawn_rotors_hummingbird_rev.launch">
+    <arg name="namespace" value="$(arg namespace)"/>
+    <arg name="world_name" value="$(arg world_name)"/>
+    <arg name="paused"     value="$(arg paused)"/>
+    <arg name="gui"        value="$(arg gui)"/>
+    <arg name="debug"      value="$(arg debug)"/>
+    <arg name="verbose"    value="$(arg verbose)"/>
+    <arg name="x"          value="20.0"/>
+    <arg name="y"          value="0.0"/>
+    <arg name="z"          value="0.1"/>
+    <arg name="yaw"        value="1.57079633"/>
+  </include>
+
+  <node name="trajectory_plotter_node"
+        pkg="clf_cbf_qp"
+        type="helix_plotter.py"
+        output="screen">
+    <param name="odom_topic"                value="/$(arg namespace)/ground_truth/odometry"/>
+    <param name="omega_sq_topic"            value="/clf_hummingbird_trajectory_controller/control/omega_sq"/>
+    <param name="thrust_topic"              value="/clf_hummingbird_trajectory_controller/control/U"/>
+    <param name="state_topic"               value="/clf_hummingbird_trajectory_controller/control/state"/>
+    <param name="helix_start_diameter"      value="40.0"/>
+    <param name="helix_end_diameter"        value="15.0"/>
+    <param name="helix_height"              value="30.0"/>
+    <param name="helix_laps"                value="4.0"/>
+    <param name="trajectory_omega"          value="0.07"/>
+    <param name="plot_save_dir"             value="$(find clf_cbf_qp)/plots"/>
+    <param name="min_omega"                 value="0.0"/>
+    <param name="max_omega"                 value="838.0"/>
+    <param name="static_obstacles"
+           value="[ [-8.96, -15.52, 8.00, 1.00], [-7.92, 13.71, 13.00, 1.00], [-5.83, -10.10, 23.00, 1.00], [-4.79, 8.30, 28.00, 1.00],  [-0.026 ,19.60 ,4.875, 1.00], [-4.8, 17.093 ,5.248, 1.00] ]" />
+  </node>
+
+  <node pkg="clf_cbf_qp" type="main_hummingbird.py" 
+        name="clf_hummingbird_trajectory_controller" output="screen">
+
+    <param name="namespace" value="$(arg namespace)" />
+    <param name="use_model_states" value="true" />
+    <param name="control_rate" value="1000.0" />
+
+    <!-- Drone Physical Properties (Hummingbird) -->
+    <param name="mass" value="0.68" />
+    <param name="gravity" value="9.81" />
+    <param name="I_x" value="0.007" />
+    <param name="I_y" value="0.007" />
+    <param name="I_z" value="0.012" />
+    <!-- kf: True motor thrust constant from Hummingbird URDF -->
+    <param name="motor_constant" value="8.54858e-06" />
+    <param name="moment_constant" value="1.3677728e-07" /> <!-- (0.016 * 8.54858e-06) -->
+    <param name="max_rot_velocity" value="838.0" />
+    <param name="min_thrust_factor" value="0.1" />
+    <param name="gravity_comp_factor" value="1.05" />
+    <param name="max_tilt_angle_deg" value="30.0" />
+    <param name="drone_radius" value="0.3" /> 
+
+
+    <param name="helix_start_diameter" value="40.0" />
+    <param name="helix_end_diameter" value="15.0" />
+    <param name="helix_height" value="30.0" />
+    <param name="helix_laps" value="4.0" />
+    <param name="trajectory_omega" value="0.07" />
+    <param name="fixed_yaw_deg" value="90" />
+
+    <param name="takeoff_x" value="20.0" />
+    <param name="takeoff_y" value="0.0" />
+    <param name="takeoff_height" value="3.0" />
+    <param name="hover_pos_threshold" value="0.25" />
+    <param name="hover_vel_threshold" value="0.25" />
+    <param name="hover_stabilization_secs" value="1.0" />
+
+    <param name="k_takepos1" value="1.5" />
+    <param name="k_takepos2" value="5.5" />
+    <param name="k_takeatt1" value="9.0" />
+    <param name="k_takeatt2" value="18.0" />
+    <!-- Trajectory Gains -->
+    <param name="k_trajpos1" value="1.5" />
+    <param name="k_trajpos2" value="5.5" />
+    <param name="k_trajatt1" value="9.0" />
+    <param name="k_trajatt2" value="18.0" />
+
+    <param name="dynamic_obstacles"
+            value="[[-8.96, -15.52, 8.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], [-7.92, 13.71, 13.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], [-5.83, -10.1, 23.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], [-4.79, 8.3, 28.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], [-0.026, 19.6, 4.875, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], [-4.8, 17.093, 5.248, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]]" />
+
+    <param name="zcbf_beta"   value="1.5" />    
+    <param name="zcbf_a1"     value="1.5" />    
+    <param name="zcbf_a2"     value="1.1" />   
+    <param name="zcbf_gamma"  value="4.0" />    
+    <param name="zcbf_kappa"  value="1.2" />   
+    <param name="zcbf_order_a" value="0" /> 
+
+
+     <!-- CLF Parameters -->
+    <param name="k_p" value="8.0" />
+    <param name="k_R" value="10.0" />
+    <param name="gamma_clf" value="10.0" />
+    <param name="rho_slack" value="2000.0" />
+
+
+    <param name="cbf_gamma" value="100.0"/>
+  </node>
+</launch>

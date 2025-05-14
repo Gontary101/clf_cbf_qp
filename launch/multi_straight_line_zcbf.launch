@@ -2,7 +2,7 @@
   <!-- General Simulation Settings -->
   <arg name="world_name"                default="basic"/>
   <arg name="paused"                    default="true"/>
-  <arg name="gui"                       default="false"/>
+  <arg name="gui"                       default="true"/>
   <arg name="debug"                     default="false"/>
   <arg name="verbose"                   default="false"/>
 
@@ -22,12 +22,12 @@
   <arg name="use_model_states_common"   default="true" />
   <arg name="control_rate_common"       default="1000.0" />
   <!-- Trajectory & Hover -->
-  <arg name="trajectory_duration_common" default="30.0" />
+  <arg name="trajectory_duration_common" default="60.0" />
   <arg name="fixed_yaw_deg_common"      default="180.0" />
-  <arg name="hover_pos_threshold_common" default="0.25" />
-  <arg name="hover_vel_threshold_common" default="0.25" />
+  <arg name="hover_pos_threshold_common" default="0.15" />
+  <arg name="hover_vel_threshold_common" default="0.15" />
   <arg name="hover_stabilization_secs_common" default="1.0" />
-  <arg name="hover_yaw_ramp_secs_common" default="1.0" />
+  <arg name="hover_yaw_ramp_secs_common" default="0.5" />
   <!-- Gains -->
   <arg name="k_takepos1_common" default="0.12" /><arg name="k_takepos2_common" default="0.25" />
   <arg name="k_takeatt1_common" default="1.5" /><arg name="k_takeatt2_common" default="3.0" />
@@ -187,7 +187,7 @@
   <node pkg="clf_cbf_qp" type="multi_straight_line_plotter.py" name="multi_drone_trajectory_plotter" output="screen">
     <param name="all_drone_namespaces" value="$(arg drone_namespaces_list)"/>
     <param name="plot_save_dir" value="$(find clf_cbf_qp)/plots"/>
-    <param name="run_duration_secs" value="60.0"/>
+    <param name="run_duration_secs" value="80.0"/>
     <param name="common_trajectory_duration" value="$(arg trajectory_duration_common)"/>
     <param name="use_filtering" value="true"/>
     <param name="filter_window_odom" value="31"/>
