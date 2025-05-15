@@ -16,13 +16,19 @@ class ZCBFFilter(object):
     def __init__(self, model, obstacles, params, cbf_pub=None):
         self.model = model
         self.obs   = obstacles
-        self.beta  = params.get("zcbf_beta",   1.0)
-        self.a1    = params.get("zcbf_a1",     0.2)
-        self.a2    = params.get("zcbf_a2",     1.0)
+        self.beta  = params.get("zcbf_beta",   1.5)
+        self.a1    = params.get("zcbf_a1",     1.5)
+        self.a2    = params.get("zcbf_a2",     1.6)
         self.gamma = params.get("zcbf_gamma",  2.4)
-        self.kappa = params.get("zcbf_kappa",  1.0)
+        self.kappa = params.get("zcbf_kappa",  0.8)
         self.a     = params.get("zcbf_order_a", 0)
         self.pub   = cbf_pub   # may be None
+        # --- low-pass filter setup (τ in seconds) ---
+        self.tau           = params.get("zcbf_tau", 0.2)
+        self._last_time    = rospy.get_time()
+        self._U_nom_prev   = None
+        self._U_out_prev   = None
+
         # Initialize publishers with absolute topic names
         #self.gamma1_pub = rospy.Publisher('/clf_iris_trajectory_controller/gamma1', Float64, queue_size=1)
         #self.gamma2_pub = rospy.Publisher('/clf_iris_trajectory_controller/gamma2', Float64MultiArray, queue_size=1)
@@ -39,6 +45,19 @@ class ZCBFFilter(object):
         if mode != "TRAJ" or self.obs.size == 0:
             return U_nom, None
 
+        # compute time step
+        now           = rospy.get_time()
+        dt            = now - self._last_time
+        self._last_time = now
+        """
+        # --- pre-filter the nominal command ---
+        if self._U_nom_prev is None:
+            U_nom_filt = U_nom
+        else:
+            alpha = dt / (self.tau + dt)
+            U_nom_filt = alpha * U_nom + (1 - alpha) * self._U_nom_prev
+        self._U_nom_prev = U_nom_filt
+        """
         m, g   = self.model.m, self.model.g
         J      = self.model.J_mat
         Jinv   = self.model.J_inv_diag
@@ -148,4 +167,16 @@ class ZCBFFilter(object):
             data = [] if slack is None else slack
             self.pub.publish(Float64MultiArray(data=list(np.asarray(data).flatten())))
 
+        
+        """
+        # --- post-filter the QP output ---
+        if self._U_out_prev is None:
+            U_filt = U
+        else:
+            alpha = dt / (self.tau + dt)
+            U_filt = alpha * U + (1 - alpha) * self._U_out_prev
+        self._U_out_prev = U_filt
+        return U_filt, slack
+        """
         return U, slack
+

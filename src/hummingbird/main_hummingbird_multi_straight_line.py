@@ -5,20 +5,20 @@ import math, ast, numpy as np, rospy
 from enum import Enum
 from nav_msgs.msg import Odometry
 from mav_msgs.msg import Actuators
-from geometry_msgs.msg import Point, Vector3
+from geometry_msgs.msg import Point, Vector3, Pose, Twist
 from std_msgs.msg import Float64MultiArray, String
 from tf.transformations import euler_from_quaternion
-from trajectory.helix import HelixTrajectory
+from trajectory.straight_line import StraightLineTrajectory
+from gazebo_msgs.msg import ModelStates
 # --- local helpers -----------------------------------------------------------
 import utils.dynamics_utils2 as dyn
 from utils.dynamics_utils2 import pget, rotation_matrix 
 from clf_backstepping import CLFBackstepping
 from obstacle_avoidance.zcbf_filter     import ZCBFFilter as SAFETYFilter
-#from obstacle_avoidance.ecbf_forms_filter import ECBFFormsFilter as SAFETYFilter
-#from obstacle_avoidance.C3BF_filter import C3BFFilter as SAFETYFilter
 
-LOG_T = 1.0     # seconds between throttled debug prints
-DBG   = True    # set False to silence controller‑side logs
+
+LOG_T = 1.0
+DBG   = True 
 
 
 class State(Enum):
@@ -37,21 +37,32 @@ class Controller(object):
         # ------------- generic / namespace ----------------------------------
         ns          = pget("namespace", "hummingbird")
         self.ns     = ns
-        self.use_gz = pget("use_model_states", False)
+        # force use of ModelStates for multi-drone collision avoidance
+        self.use_gz = pget("use_model_states", True)
 
         # ------------- quadrotor model --------------------------------------
         self.model  = dyn.DroneModel()
 
         # ------------- trajectory selection -----------------------------------
-        # instantiate helix; later you can swap in other trajectory classes
-        self.trajectory   = HelixTrajectory()
-        self.omega_traj   = self.trajectory.omega
+        # instantiate straight-line trajectory
+        self.trajectory   = StraightLineTrajectory()
         self.yaw_fix      = self.trajectory.yaw_fix
 
         # ------------- take‑off / hover goal --------------------------------
-        self.x_to = pget("takeoff_x",      self.trajectory.r0) # Will be overridden
-        self.y_to = pget("takeoff_y",      0.0)
-        self.z_to = pget("takeoff_height", 3.0)
+        # take-off / hover goal — read the private '~trajectory_start_point' param,
+        # parse it if it's a string, else fall back to trajectory.p0
+        raw_pt = pget("trajectory_start_point", None)
+        if isinstance(raw_pt, str):
+            try:
+                pt = ast.literal_eval(raw_pt)
+            except Exception:
+                rospy.logwarn("[%s] Could not parse trajectory_start_point '%s', using default p0", self.ns, raw_pt)
+                pt = tuple(self.trajectory.p0)
+        elif isinstance(raw_pt, (list, tuple)) and len(raw_pt) >= 3:
+            pt = raw_pt
+        else:
+            pt = tuple(self.trajectory.p0)
+        self.x_to, self.y_to, self.z_to = float(pt[0]), float(pt[1]), float(pt[2])
 
         # ------------- controller gains -------------------------------------
         def gains(tag, k1, k2, a1, a2):
@@ -75,10 +86,29 @@ class Controller(object):
         self.cbf_pub = rospy.Publisher("~cbf/slack",
                                        Float64MultiArray, queue_size=1)
         self.zcbf = SAFETYFilter(self.model, self.obs, cbf_par,
-                               cbf_pub=self.cbf_pub)
+                                 cbf_pub=self.cbf_pub)
+
+        # --- Multi-Drone Setup ------------------------------------------------
+        try:
+            all_ns_str = pget("all_drone_namespaces", "[]")
+            self.all_drone_namespaces = ast.literal_eval(all_ns_str)
+            if not isinstance(self.all_drone_namespaces, list):
+                raise ValueError("not a list")
+            rospy.loginfo("[%s] Aware of drones: %s", self.ns, self.all_drone_namespaces)
+        except Exception as e:
+            rospy.logerr("[%s] Invalid all_drone_namespaces='%s': %s", self.ns, all_ns_str, e)
+            rospy.signal_shutdown("Configuration Error")
+            return
+
+        # initialise container for others' states
+        self.other_drone_states = {
+            other: {'pose': None, 'twist': None, 'time': rospy.Time(0)}
+            for other in self.all_drone_namespaces if other != self.ns
+        }
+        self.state_timeout = rospy.Duration(1.0)
 
         # ------------- publishers -------------------------------------------
-        self.cmd_pub = rospy.Publisher(ns + "/command/motor_speed",
+        self.cmd_pub = rospy.Publisher("command/motor_speed",
                                        Actuators, queue_size=1)
 
         misc_topics = [
@@ -116,14 +146,15 @@ class Controller(object):
 
         self.psi_traj0   = self.trajectory.ref(0.0)[3]
 
+        # subscribe to ModelStates for this + other drones
         if self.use_gz:
-            from gazebo_msgs.msg import ModelStates
-            self.sub = rospy.Subscriber("/gazebo/model_states",
-                                        ModelStates, self.cb_model,
-                                        queue_size=5, buff_size=2**24)
+            self.model_state_sub = rospy.Subscriber("/gazebo/model_states",
+                                                    ModelStates, self.cb_model,
+                                                    queue_size=1, buff_size=2**24)
         else:
-            self.sub = rospy.Subscriber(ns + "/ground_truth/odometry",
-                                        Odometry, self.cb_odom, queue_size=10)
+            rospy.logerr("[%s] Multi-drone requires use_model_states=True", self.ns)
+            rospy.signal_shutdown("Configuration Error")
+            return
 
         rate = pget("control_rate", 500.0)
         self.timer = rospy.Timer(rospy.Duration(1.0 / rate),
@@ -177,16 +208,24 @@ class Controller(object):
     # ------------------------------------------------ subscriber callbacks --
     def cb_odom(self, msg):   self.last = msg
     def cb_model(self, msg):
-        try: idx = msg.name.index(self.ns)
-        except ValueError:
-            try: idx = msg.name.index(self.ns + "/")
-            except ValueError: return
-        o = Odometry()
-        o.header.stamp    = rospy.Time.now()
-        o.header.frame_id = "world"
-        o.child_frame_id  = self.ns + "/base_link"
-        o.pose.pose, o.twist.twist = msg.pose[idx], msg.twist[idx]
-        self.last = o
+        now = rospy.Time.now()
+        found_self = False
+        for i, name in enumerate(msg.name):
+            if name == self.ns:
+                o = Odometry()
+                o.header.stamp    = now
+                o.header.frame_id = "world"
+                o.child_frame_id  = self.ns + "/base_link"
+                o.pose.pose       = msg.pose[i]
+                o.twist.twist     = msg.twist[i]
+                self.last = o
+                found_self = True
+            elif name in self.other_drone_states:
+                self.other_drone_states[name]['pose']  = msg.pose[i]
+                self.other_drone_states[name]['twist'] = msg.twist[i]
+                self.other_drone_states[name]['time']  = now
+        if not found_self and self.last is None:
+            rospy.logwarn_throttle(5.0, "[%s] Own state not found in /gazebo/model_states", self.ns)
 
     # ------------------------------------------------ main control loop -----
     def loop(self, _evt):
@@ -232,8 +271,7 @@ class Controller(object):
             err_z   = abs(p_vec[2] - tgt[2])
             err_v   = np.linalg.norm(v_world - vd)
 
-            if (self.state == State.TAKEOFF
-                and err_z < pos_thr and err_v < vel_thr):
+            if self.state == State.TAKEOFF and p_vec[2] >= self.z_to - pos_thr:
                 rospy.loginfo("TRANSITION  →  HOVER")
                 self.state, self.hover_ok_t = State.HOVER, None
 
@@ -245,7 +283,7 @@ class Controller(object):
                             pget("hover_stabilization_secs", 2.0)):
                         rospy.loginfo("TRANSITION  →  TRAJ")
                         self.state, self.t0_traj = State.TRAJ, now
-                        self.trajectory.xy_offset = np.array([self.x_to - self.trajectory.r0, self.y_to])
+                        self.trajectory.xy_offset = np.array([self.x_to - self.trajectory.p0[0], self.y_to - self.trajectory.p0[1]])
                         self.trajectory.z_offset  = self.z_to
 
                 else:
@@ -282,13 +320,26 @@ class Controller(object):
         out = self.clf.compute(st, ref, gains)      # -> dict
         U_nom = out["U_nom"]
 
+        # ----- build dynamic obstacle list from other drones ---------------
+        dynamic_obs = []
+        for ns, s in self.other_drone_states.items():
+            if s['pose'] is not None and (now - s['time']) < self.state_timeout:
+                p_o = s['pose'].position
+                v_o = s['twist'].linear
+                dynamic_obs.append([p_o.x, p_o.y, p_o.z,
+                                     v_o.x, v_o.y, v_o.z,
+                                     0.0, 0.0, 0.0, self.model.r_drone])
+        dyn_arr = np.array(dynamic_obs, dtype=float)
+        if self.obs.size > 0:
+            combined_obs = np.vstack((self.obs, dyn_arr)) if dyn_arr.size > 0 else self.obs
+        else:
+            combined_obs = dyn_arr
+        self.zcbf.obs = combined_obs
+
         # ----- ZCBF safety filter -------------------------------------------
-        # Pass current state name (string) to ZCBF filter
-        #U, _ = self.zcbf.filter(self.state.name, U_nom, st, out)
-                # --- If we're using the ECBFFormsFilter it expects these extras ---
-        st['gains']  = gains     # from either takeoff or traj
-        st['ref']    = ref       # original ref dict {tgt, vd, ad, yd, rd}
-        st['ad_nom'] = ad_nom    # the nominal acceleration before filtering
+        st['gains']  = gains
+        st['ref']    = ref
+        st['ad_nom'] = ad_nom
         U, _ = self.zcbf.filter(self.state.name, U_nom, st, out)
 
         # ----- motor allocation & publish ------------------------------------

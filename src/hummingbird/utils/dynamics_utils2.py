@@ -34,13 +34,15 @@ class DroneModel(object):
         self.Iy = pget("I_y",    0.007)
         self.Iz = pget("I_z",    0.012)
 
+
+
         self.kf = pget("motor_constant",   8.54858e-06)
         self.km = pget("moment_constant",  1.3677728e-07)
         self.arm_length = pget("arm_length", 0.17)
 
         self.w_max      = pget("max_rot_velocity",    838.0)
         self.min_f      = pget("min_thrust_factor",     0.1)
-        self.gc         = pget("gravity_comp_factor",   1.022)
+        self.gc         = pget("gravity_comp_factor",   1.05)
         self.max_tilt   = math.radians(pget("max_tilt_angle_deg", 30.0))
         self.r_drone    = pget("drone_radius", 0.3)
 
