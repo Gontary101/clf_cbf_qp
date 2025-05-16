@@ -58,7 +58,7 @@
   <!-- Launch Controllers within their respective namespaces -->
   <!-- Controller for Drone 1 -->
   <group ns="$(arg ns1)">
-    <node pkg="clf_cbf_qp" type="main_hummingbird_all_obs.py" name="clf_iris_trajectory_controller" output="screen">
+    <node pkg="clf_cbf_qp" type="main_hummingbird_all_obs_tan.py" name="clf_iris_trajectory_controller" output="screen">
       <!-- Load common physical parameters from YAML -->
       <rosparam command="load" file="$(find clf_cbf_qp)/config/common_drone_params_hummingbird.yaml" />
       <rosparam command="load" file="$(find clf_cbf_qp)/config/obstacles.yaml" />

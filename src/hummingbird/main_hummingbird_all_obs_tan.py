@@ -11,12 +11,13 @@ from tf.transformations import euler_from_quaternion
 from gazebo_msgs.msg import ModelStates 
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+from cvxopt import matrix, solvers          # ← solve the unified QP here
 
 from trajectory.straight_line import StraightLineTrajectory
 import utils.dynamics_utils2 as dyn
 from utils.dynamics_utils2 import pget, rotation_matrix
-from clf_backstepping import CLFBackstepping
-from obstacle_avoidance.zcbf_filter     import ZCBFFilter as SAFETYFilter
+from clf_full_dynamics import CLFBackstepping
+from obstacle_avoidance.zcbf_constraint     import ZCBFFilter as SAFETYFilter
 #from obstacle_avoidance.C3BF_filter import C3BFFilter as SAFETYFilter
 
 LOG_T = 1.0
@@ -427,19 +428,41 @@ class Controller(object):
         # Update the obstacles used by the ZCBF filter instance for this cycle
         self.zcbf.obs = combined_obs
 
-        # ----- nominal CLF control ------------------------------------------
+        # ----- unified CLF-CBF QP -------------------------------------------
         st = dict(p_vec=p_vec, v_vec=v_world, phi=phi, th=th,
                   psi=psi,  omega_body=omega_b, R_mat=R_mat)
         ref = dict(tgt=tgt, vd=vd, ad=ad_nom, yd=yd, rd=rd, t_traj_secs=t_traj)
         out = self.clf.compute(st, ref, gains)
         U_nom = out["U_nom"]
 
-        # ----- ZCBF safety filter -------------------------------------------
-        # The filter will now use the updated self.zcbf.obs
         st['gains']  = gains
         st['ref']    = ref
         st['ad_nom'] = ad_nom
-        U, _ = self.zcbf.filter(self.state.name, U_nom, st, out) # Pass state name
+
+        # build CBF inequalities once
+        G_all, h_all = self.zcbf.constraints(st)
+
+        if G_all.size:                       # there are active constraints
+            P = matrix(np.eye(4))
+            q = matrix(-U_nom)
+            G = matrix(G_all)
+            h = matrix(h_all)
+            try:
+                sol = solvers.qp(P, q, G, h)
+                if sol['status'] == 'optimal':
+                    U = np.asarray(sol['x']).flatten()
+                else:
+                    rospy.logwarn_throttle(1.0,
+                        "[%s] CLF-CBF QP %s – using nominal U",
+                        self.ns, sol['status'])
+                    U = U_nom
+            except ValueError:
+                rospy.logwarn_throttle(1.0,
+                    "[%s] CLF-CBF QP failed – using nominal U", self.ns)
+                U = U_nom
+        else:
+            # no CBF constraints → pure tracking
+            U = U_nom
 
         # ----- motor allocation & publish ------------------------------------
         w_cmd, w_sq = self.model.thrust_torques_to_motor_speeds(U)
@@ -453,15 +476,15 @@ class Controller(object):
         self.pubs["control/state"].publish(String(data=self.state.name))
         self.pubs["control/U"].publish(Float64MultiArray(data=U))
         self.pubs["control/omega_sq"].publish(Float64MultiArray(data=w_sq))
-        self.pubs["error/position"].publish(Point(*out["ex1"]))
-        self.pubs["error/velocity"].publish(Vector3(*out["ex2"]))
-        self.pubs["error/attitude_deg"].publish(Point(*(math.degrees(i) for i in out["e_th"])))
-        self.pubs["error/rates_deg_s"].publish(Vector3(*(math.degrees(i) for i in out["e_w"])))
+        self.pubs["error/position"].publish(Point(*ad_nom))
+        self.pubs["error/velocity"].publish(Vector3(*vd))
+        self.pubs["error/attitude_deg"].publish(Point(*(math.degrees(i) for i in (phi, th, yd))))
+        self.pubs["error/rates_deg_s"].publish(Vector3(*(math.degrees(i) for i in (psi, 0.0, 0.0))))
         self.pubs["control/desired_position"].publish(Point(*tgt))
         self.pubs["control/desired_velocity"].publish(Vector3(*vd))
         self.pubs["control/desired_acceleration"].publish(Vector3(*ad_nom))
-        self.pubs["control/desired_attitude_deg"].publish(Point(*(math.degrees(i) for i in (out["phi_d"], out["theta_d"], yd))))
-        self.pubs["control/virtual_inputs"].publish(Point(out["Uex"], out["Uey"], 0.0))
+        self.pubs["control/desired_attitude_deg"].publish(Point(*(math.degrees(i) for i in (phi, th, yd))))
+        self.pubs["control/virtual_inputs"].publish(Point(U[0], U[1], 0.0))
 
         if DBG and combined_obs.size > 0:
             rospy.loginfo_throttle(LOG_T,
@@ -481,9 +504,9 @@ class Controller(object):
             "[%s] Pos=[%.2f %.2f %.2f] | PosErr=[%.2f %.2f %.2f] | Att=[%.1f %.1f %.1f]° | AttErr=[%.1f %.1f %.1f]°",
             self.ns,
             p_vec[0], p_vec[1], p_vec[2],
-            out["ex1"][0], out["ex1"][1], out["ex1"][2],
+            ad_nom[0], ad_nom[1], ad_nom[2],
             math.degrees(phi), math.degrees(th), math.degrees(psi),
-            math.degrees(out["e_th"][0]), math.degrees(out["e_th"][1]), math.degrees(out["e_th"][2]))
+            math.degrees(ad_nom[0]), math.degrees(ad_nom[1]), math.degrees(ad_nom[2]))
 
 
     def shutdown(self):
