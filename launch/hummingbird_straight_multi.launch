@@ -22,20 +22,20 @@
   <arg name="use_model_states_common"   default="true" />
   <arg name="control_rate_common"       default="1000.0" />
   <!-- Trajectory & Hover -->
-  <arg name="trajectory_duration_common" default="60.0" />
+  <arg name="trajectory_duration_common" default="50.0" />
   <arg name="fixed_yaw_deg_common"      default="180.0" />
   <arg name="hover_pos_threshold_common" default="0.15" />
   <arg name="hover_vel_threshold_common" default="0.15" />
   <arg name="hover_stabilization_secs_common" default="1.0" />
   <arg name="hover_yaw_ramp_secs_common" default="0.5" />
   <!-- Gains -->
-  <arg name="k_takepos1_common" default="1.5" /><arg name="k_takepos2_common" default="5.5" />
+  <arg name="k_takepos1_common" default="1.8" /><arg name="k_takepos2_common" default="5.5" />
   <arg name="k_takeatt1_common" default="9.0" /><arg name="k_takeatt2_common" default="18.0" />
-  <arg name="k_trajpos1_common" default="1.3" /><arg name="k_trajpos2_common" default="5.1" />
+  <arg name="k_trajpos1_common" default="1.6" /><arg name="k_trajpos2_common" default="5.6" />
   <arg name="k_trajatt1_common" default="14.0" /><arg name="k_trajatt2_common" default="28.0" />
   <!-- ZCBF Parameters -->
   <arg name="zcbf_beta_common"   default="1.5" /><arg name="zcbf_a1_common" value="1.5" />
-  <arg name="zcbf_a2_common"     default="1.6" /><arg name="zcbf_gamma_common" value="2.4" />
+  <arg name="zcbf_a2_common"     default="1.6" /><arg name="zcbf_gamma_common" value="6.4" />
   <arg name="zcbf_kappa_common"  default="0.8" /><arg name="zcbf_order_a_common" value="0" />
   <!-- Obstacles -->
   <arg name="dynamic_obstacles_common" default="[]" />
@@ -67,9 +67,10 @@
   <!-- Launch Controllers within their respective namespaces -->
   <!-- Controller for Drone 1 -->
   <group ns="$(arg ns1)">
-    <node pkg="clf_cbf_qp" type="main_hummingbird_multi_straight_line.py" name="clf_iris_trajectory_controller" output="screen">
+    <node pkg="clf_cbf_qp" type="main_hummingbird_all_obs.py" name="clf_iris_trajectory_controller" output="screen">
       <!-- Load common physical parameters from YAML -->
-      <rosparam command="load" file="$(find clf_cbf_qp)/config/common_drone_params.yaml" />
+      <rosparam command="load" file="$(find clf_cbf_qp)/config/common_drone_params_hummingbird.yaml" />
+      <rosparam command="load" file="$(find clf_cbf_qp)/config/obstacles.yaml" />
 
       <!-- Unique Params -->
       <param name="~trajectory_start_point" value="$(arg start1)" />
@@ -98,8 +99,9 @@
 
   <!-- Controller for Drone 2 -->
   <group ns="$(arg ns2)">
-    <node pkg="clf_cbf_qp" type="main_hummingbird_multi_straight_line.py" name="clf_iris_trajectory_controller" output="screen">
-      <rosparam command="load" file="$(find clf_cbf_qp)/config/common_drone_params.yaml" />
+    <node pkg="clf_cbf_qp" type="main_hummingbird_all_obs.py" name="clf_iris_trajectory_controller" output="screen">
+      <rosparam command="load" file="$(find clf_cbf_qp)/config/common_drone_params_hummingbird.yaml" />
+      <rosparam command="load" file="$(find clf_cbf_qp)/config/obstacles.yaml" />
       <!-- Unique Params -->
       <param name="~trajectory_start_point" value="$(arg start2)" />
       <param name="~trajectory_end_point"   value="$(arg end2)" />
@@ -127,8 +129,9 @@
 
   <!-- Controller for Drone 3 -->
   <group ns="$(arg ns3)">
-    <node pkg="clf_cbf_qp" type="main_hummingbird_multi_straight_line.py" name="clf_iris_trajectory_controller" output="screen">
-      <rosparam command="load" file="$(find clf_cbf_qp)/config/common_drone_params.yaml" />
+    <node pkg="clf_cbf_qp" type="main_hummingbird_all_obs.py" name="clf_iris_trajectory_controller" output="screen">
+      <rosparam command="load" file="$(find clf_cbf_qp)/config/common_drone_params_hummingbird.yaml" />
+      <rosparam command="load" file="$(find clf_cbf_qp)/config/obstacles.yaml" />
       <!-- Unique Params -->
       <param name="~trajectory_start_point" value="$(arg start3)" />
       <param name="~trajectory_end_point"   value="$(arg end3)" />
@@ -156,8 +159,9 @@
 
   <!-- Controller for Drone 4 -->
   <group ns="$(arg ns4)">
-    <node pkg="clf_cbf_qp" type="main_hummingbird_multi_straight_line.py" name="clf_iris_trajectory_controller" output="screen">
-      <rosparam command="load" file="$(find clf_cbf_qp)/config/common_drone_params.yaml" />
+    <node pkg="clf_cbf_qp" type="main_hummingbird_all_obs.py" name="clf_iris_trajectory_controller" output="screen">
+      <rosparam command="load" file="$(find clf_cbf_qp)/config/common_drone_params_hummingbird.yaml" />
+      <rosparam command="load" file="$(find clf_cbf_qp)/config/obstacles.yaml" />
       <!-- Unique Params -->
       <param name="~trajectory_start_point" value="$(arg start4)" />
       <param name="~trajectory_end_point"   value="$(arg end4)" />

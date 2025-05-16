@@ -75,7 +75,7 @@
         <center_y>0.0</center_y>
         <center_z>8.00</center_z>
         <radius>17.9207</radius>
-        <speed>     -0.07</speed>  <!-- rad/s -->
+        <speed>-0.15</speed>  <!-- rad/s -->
       </plugin>
     </model>
 
@@ -106,7 +106,7 @@
         <center_y>0.0</center_y>
         <center_z>13.00</center_z>
         <radius>15.8332</radius>
-        <speed>     -0.07</speed>  <!-- rad/s -->
+        <speed>0.08</speed>  <!-- rad/s -->
       </plugin>
     </model>
 
@@ -139,7 +139,7 @@
         <center_y>0.0</center_y>
         <center_z>23.00</center_z>
         <radius>11.6619</radius>
-        <speed>     -0.07</speed>  <!-- rad/s -->
+        <speed>-0.18</speed>  <!-- rad/s -->
       </plugin>
     </model>
 
@@ -170,7 +170,7 @@
         <center_y>0.0</center_y>
         <center_z>28.00</center_z>
         <radius>9.5830</radius>
-        <speed>     -0.07</speed>  <!-- rad/s -->
+        <speed>0.05</speed>  <!-- rad/s -->
       </plugin>
     </model>
    <model name='sphere_obstacle_5'>
@@ -200,7 +200,7 @@
         <center_y>0.0</center_y>
         <center_z>4.875</center_z>
         <radius>19.6000</radius>
-        <speed>     -0.07</speed>  <!-- rad/s -->
+        <speed>-0.12</speed>  <!-- rad/s -->
       </plugin>
 </model>
 
@@ -231,7 +231,7 @@
         <center_y>0.0</center_y>
         <center_z>5.248</center_z>
         <radius>17.7541</radius>
-        <speed>     -0.07</speed>  <!-- rad/s -->
+        <speed>0.09</speed>  <!-- rad/s -->
       </plugin>
 </model>
 

@@ -19,7 +19,7 @@ class ZCBFFilter(object):
         self.beta  = params.get("zcbf_beta",   1.5)
         self.a1    = params.get("zcbf_a1",     1.5)
         self.a2    = params.get("zcbf_a2",     1.6)
-        self.gamma = params.get("zcbf_gamma",  2.4)
+        self.gamma = params.get("zcbf_gamma",  8.4)
         self.kappa = params.get("zcbf_kappa",  0.8)
         self.a     = params.get("zcbf_order_a", 0)
         self.pub   = cbf_pub   # may be None
@@ -64,6 +64,11 @@ class ZCBFFilter(object):
         kf, km = self.model.kf, self.model.km
         w_max  = self.model.w_max
         r_d    = self.model.r_drone
+        # --- new: minimum collective thrust allowed ------------------------
+        thr_min_fac = rospy.get_param("~min_thrust_factor", 0.10)  # same name as YAML
+        U1_min      = thr_min_fac * m * g                         # [N]
+        # --- new: ignore obstacles farther than this (for numerical health)
+        cbf_range   = rospy.get_param("~cbf_active_range", 2.0)   # [m]
 
         p = state["p_vec"];  v = state["v_vec"]
         R = state["R_mat"];  Om = state["omega_body"]
@@ -71,6 +76,9 @@ class ZCBFFilter(object):
         G_list, h_list = [], []
 
         for o in self.obs:
+            # early-reject if far away
+            if np.linalg.norm(state["p_vec"] - o[:3]) > cbf_range:
+                continue
             ox, oy, oz, vx, vy, vz, ax, ay, az, r_o = o
             x_o, V_o, A_o = np.array([ox, oy, oz]), \
                             np.array([vx, vy, vz]), \
@@ -133,10 +141,12 @@ class ZCBFFilter(object):
 
         # -------- input box constraint on collective thrust ------------------
         U1_max = 4.0 * kf * w_max ** 2
+        #  U1_max  ≥ U₁ ≥ U1_min   →   [ 1 0 0 0]·U ≤ U1_max
+        #                                [-1 0 0 0]·U ≤ –U1_min
         G_box  = np.array([[ 1., 0, 0, 0],
                            [-1., 0, 0, 0]])
-        h_box  = np.array([[U1_max],
-                           [0.0]])
+        h_box  = np.array([[ U1_max],
+                           [-U1_min]])
 
         G_cbf = np.vstack(G_list)               if G_list else np.empty((0, 4))
         h_cbf = np.array(h_list, dtype=float).reshape(-1, 1)
