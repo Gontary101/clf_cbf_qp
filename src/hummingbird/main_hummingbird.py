@@ -71,7 +71,7 @@ class Controller(object):
                         a2     = pget("zcbf_a2",     1.0),
                         gamma  = pget("zcbf_gamma",  2.4),
                         kappa  = pget("zcbf_kappa",  1.0),
-                        order_a= pget("zcbf_order_a", 0)) # Defaults, will be overridden
+                        order_a= pget("zcbf_order_a", 0)) 
         self.cbf_pub = rospy.Publisher("~cbf/slack",
                                        Float64MultiArray, queue_size=1)
         self.zcbf = SAFETYFilter(self.model, self.obs, cbf_par,
@@ -108,8 +108,7 @@ class Controller(object):
         self.state       = State.TAKEOFF
         self.t0_traj     = None
         self.hover_ok_t  = None
-        
-        # ******** INITIALIZE OFFSETS *BEFORE* USING THEM IN trajectory ********
+        self.model_states = None
         self.trajectory.xy_offset = None
         self.trajectory.z_offset  = None
         # *********************************************************************
@@ -177,6 +176,7 @@ class Controller(object):
     # ------------------------------------------------ subscriber callbacks --
     def cb_odom(self, msg):   self.last = msg
     def cb_model(self, msg):
+        self.model_states = msg
         try: idx = msg.name.index(self.ns)
         except ValueError:
             try: idx = msg.name.index(self.ns + "/")
@@ -190,6 +190,31 @@ class Controller(object):
 
     # ------------------------------------------------ main control loop -----
     def loop(self, _evt):
+        if self.use_gz and getattr(self, 'model_states', None):
+            obs_list = []
+            for name, pose, twist in zip(self.model_states.name,
+                                         self.model_states.pose,
+                                         self.model_states.twist):
+                if name.startswith('sphere_obstacle_'):
+                    x, y, z = (pose.position.x,
+                               pose.position.y,
+                               pose.position.z)
+                    vx, vy, vz = (twist.linear.x,
+                                  twist.linear.y,
+                                  twist.linear.z)
+                    # no accel in ModelStates → zero
+                    ax = ay = az = 0.0
+                    # sphere radius
+                    r = 1.0
+                    obs_list.append([x, y, z, vx, vy, vz, ax, ay, az, r])
+            if obs_list:
+                self.obs = np.array(obs_list, dtype=float)
+                self.zcbf.obs = self.obs
+                if DBG:
+                    rospy.loginfo_throttle(LOG_T, "Updated dynamic obstacles: %d obstacles detected", len(obs_list))
+                    for i, obs in enumerate(obs_list):
+                        rospy.loginfo_throttle(LOG_T, "Obstacle %d: pos=[%.2f, %.2f, %.2f] vel=[%.2f, %.2f, %.2f] r=%.2f",
+                            i, obs[0], obs[1], obs[2], obs[3], obs[4], obs[5], obs[9])
         if self.last is None:
             return
         now = rospy.Time.now()

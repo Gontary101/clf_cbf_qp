@@ -109,7 +109,6 @@ class Controller(object):
         self.t0_traj     = None
         self.hover_ok_t  = None
         
-        # ******** INITIALIZE OFFSETS *BEFORE* USING THEM IN trajectory ********
         self.trajectory.xy_offset = None
         self.trajectory.z_offset  = None
         # *********************************************************************
@@ -176,36 +175,6 @@ class Controller(object):
              return np.empty((0,10), dtype=float)
 
 
-    # ------------------------------------------------ trajectory ------------
-    def traj_ref(self, t):
-        """Helix reference (world frame)."""
-        omt = self.omega_traj * t
-        r   = self.trajectory.r0 - self.trajectory.k_r * omt
-        z   = self.trajectory.k_z * omt
-        cs  = (math.cos(omt), math.sin(omt))
-
-        pos = np.array([r * cs[0], r * cs[1], z])
-        if self.trajectory.xy_offset is not None: 
-            pos[:2] += self.trajectory.xy_offset
-        if self.trajectory.z_offset is not None:
-            pos[2] += self.trajectory.z_offset
-
-        dr   = -self.trajectory.k_r
-        # Components of d(pos)/d(omt)
-        xp_comp = dr * cs[0] - r * cs[1]
-        yp_comp = dr * cs[1] + r * cs[0]
-        zp_comp = self.trajectory.k_z
-        vel  = np.array([xp_comp, yp_comp, zp_comp]) * self.omega_traj
-        
-        # Components of d^2(pos)/d(omt)^2
-        a0_comp =  2 * self.trajectory.k_r * cs[1] - r * cs[0] # d(xp_comp)/d(omt)
-        a1_comp = -2 * self.trajectory.k_r * cs[0] - r * cs[1] # d(yp_comp)/d(omt)
-        acc  = np.array([a0_comp, a1_comp, 0.0]) * (self.omega_traj ** 2)
-
-        psi_d = math.atan2(vel[1], vel[0])
-        denom = vel[0] ** 2 + vel[1] ** 2
-        rd    = (vel[0] * acc[1] - vel[1] * acc[0]) / denom if denom > 1e-6 else 0.0
-        return pos, vel, acc, psi_d, rd
 
     # ------------------------------------------------ subscriber callbacks --
     def cb_odom(self, msg):   self.last = msg

@@ -19,7 +19,7 @@ class ZCBFFilter(object):
         self.beta  = params.get("zcbf_beta",   1.5)
         self.a1    = params.get("zcbf_a1",     1.5)
         self.a2    = params.get("zcbf_a2",     1.6)
-        self.gamma = params.get("zcbf_gamma",  8.4)
+        self.gamma = params.get("zcbf_gamma",  12.4)
         self.kappa = params.get("zcbf_kappa",  0.8)
         self.a     = params.get("zcbf_order_a", 0)
         self.pub   = cbf_pub   # may be None

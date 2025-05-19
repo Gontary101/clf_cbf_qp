@@ -11,17 +11,17 @@ from tf.transformations import euler_from_quaternion
 from gazebo_msgs.msg import ModelStates 
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-from cvxopt import matrix, solvers          # ← solve the unified QP here
+from cvxopt import matrix, solvers         
 
 from trajectory.straight_line import StraightLineTrajectory
 import utils.dynamics_utils2 as dyn
 from utils.dynamics_utils2 import pget, rotation_matrix
-from clf_full_dynamics import CLFBackstepping
+from clf_backstepping import CLFBackstepping
 from obstacle_avoidance.zcbf_constraint     import ZCBFFilter as SAFETYFilter
 #from obstacle_avoidance.C3BF_filter import C3BFFilter as SAFETYFilter
 
 LOG_T = 1.0
-DBG   = False
+DBG   = True
 
 class State(Enum):
     TAKEOFF = 1
@@ -85,11 +85,6 @@ class Controller(object):
         # Static obstacles parsed from param (can still be used if needed)
         self.static_obs = self._parse_obstacles()
 
-        # ──────────────────────────────────────────────────────────────
-        # NEW – cap "active" spheres that the CBF sees in a single step
-        # A handful of nearest spheres is enough to guarantee safety
-        # while keeping the QP small and well-conditioned.
-        # ──────────────────────────────────────────────────────────────
         self.max_active_spheres = pget("zcbf_max_active_spheres", 5)
 
         cbf_par  = dict(beta   = pget("zcbf_beta",   1.5),
@@ -100,7 +95,6 @@ class Controller(object):
                         order_a= pget("zcbf_order_a", 0))
         self.cbf_pub = rospy.Publisher("~cbf/slack",
                                        Float64MultiArray, queue_size=1)
-        # Initialize CBF with empty dynamic obstacles; will be updated in loop
         self.zcbf = SAFETYFilter(self.model, np.empty((0, 10)), cbf_par,
                                cbf_pub=self.cbf_pub)
 

@@ -37,7 +37,7 @@ class CLFBackstepping(object):
         self.model = model
         self.w_u     = rospy.get_param("~clf_qp_wu",     5.0)
         self.w_slack = rospy.get_param("~clf_qp_wslack", 1e3)
-        self.alpha   = rospy.get_param("~clf_qp_alpha",  1.0)
+        self.alpha   = rospy.get_param("~clf_qp_alpha",  3.2)
 
     def compute(self, state, ref, gains):
         m, g = self.model.m, self.model.g
@@ -61,8 +61,8 @@ class CLFBackstepping(object):
         e_p = p - pd
         e_v = v - vd
 
-        a_cmd = ad - Kp * e_p - Kv * e_v + g * np.array([0.0, 0.0, 1.0])
-
+        e3 = np.array([0.0, 0.0, 1.0])
+        a_cmd = ad - Kp * e_p - Kv * e_v + g * e3
         if np.linalg.norm(a_cmd) < 1e-6:
             b3_d = np.array([0.0, 0.0, 1.0])
         else:
@@ -80,7 +80,8 @@ class CLFBackstepping(object):
 
         R_d = np.column_stack((b1_d, b2_d, b3_d))
 
-        e_R = -0.5 * _vee(R_d.T.dot(R) - R.T.dot(R_d))
+        #    e_R = ½ (R_dᵀ R − Rᵀ R_d)ˇ
+        e_R = 0.5 * _vee(R_d.T.dot(R) - R.T.dot(R_d))
 
         Omega_d_b = np.array([0.0, 0.0, r_d])
         e_Omega = Omega - R.T.dot(R_d.dot(Omega_d_b))
@@ -93,26 +94,52 @@ class CLFBackstepping(object):
         tau_ff = np.zeros(3)
         u_ff   = np.hstack((f_ff, tau_ff))
 
-        Lf_V_trans = e_v.dot(-m * g * np.array([0, 0, 1]) - m * ad) \
-                   + Kp * e_p.dot(e_v)
-        Lg_V_f     = e_v.dot(R.dot(np.array([0.0, 0.0, 1.0])))
+        # Initialize desired angular velocity derivative (zero by default)
+        Omega_d_b_dot = np.zeros(3)
 
+        # ---------- translational Lie derivatives ----------
+        g_vec       = g * np.array([0.0, 0.0, 1.0])
+        Lf_V_trans  = m * e_v.dot(-g_vec - ad) + Kp * e_p.dot(e_v)
+
+        Lg_V_f      =  -e_v.dot(R.dot(np.array([0.0, 0.0, 1.0])))
+
+        rospy.loginfo_throttle(1.0, "Translational Lie derivatives - Lf_V_trans: %s, Lg_V_f: %s", Lf_V_trans, Lg_V_f)
+
+        # ---------- rotational Lie derivatives ----------
         omega_cross_Jomega = np.cross(Omega, J.dot(Omega))
-        Lf_V_rot = -KR * e_R.dot(e_Omega) \
+        Lf_V_rot = (KR * e_R.dot(e_Omega)
                    - e_Omega.dot(omega_cross_Jomega)
-        Lg_V_tau =  e_Omega.copy()
+                   - e_Omega.dot(J.dot(R.T.dot(R_d.dot(Omega_d_b_dot)))))  
+
+        rospy.loginfo_throttle(1.0, "Rotational Lie derivative - Lf_V_rot: %s", Lf_V_rot)
+
+        # ---------- control input Jacobian ----------
+        Lg_V_tau = e_Omega.copy()
 
         Lf_V = Lf_V_trans + Lf_V_rot
         Lg_V = np.hstack((Lg_V_f, Lg_V_tau))
 
+        rospy.loginfo_throttle(1.0, "Combined Lie derivatives - Lf_V: %s, Lg_V: %s", Lf_V, Lg_V)
+
         H = np.diag([self.w_u]*4 + [self.w_slack])
         f_vec = np.zeros(5)
-        f_vec[:4] = -self.w_u * u_ff
+        f_vec[:4] = -np.diag(H)[:4] * u_ff
 
-        A_clf = np.zeros((1, 5))
-        A_clf[0, :4] = Lg_V
-        A_clf[0, 4]  = -1.0
-        b_clf = - (Lf_V + self.alpha * V)
+        # -------- 1️⃣ translational CLF -----------
+        A_clf_tr = np.zeros((1,5))
+        A_clf_tr[0,:4] = [Lg_V_f, 0, 0, 0]
+        A_clf_tr[0,4]  = -1
+        b_clf_tr = - (Lf_V_trans + self.alpha * V_trans)
+
+        # -------- 2️⃣ rotational CLF --------------
+        A_clf_rot = np.zeros((1,5))
+        A_clf_rot[0,1:4] = Lg_V_tau               # only torques enter
+        A_clf_rot[0,4]   = -1
+        b_clf_rot = - (Lf_V_rot  + self.alpha * V_rot)
+
+        # stack them
+        A_clf = np.vstack((A_clf_tr, A_clf_rot))
+        b_clf = np.hstack((b_clf_tr, b_clf_rot))
 
         f_min = self.model.min_f * m * g
         f_max = 4.0 * self.model.kf * (self.model.w_max ** 2)

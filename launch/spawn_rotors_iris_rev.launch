@@ -6,7 +6,7 @@
     <arg name="log_file" default="$(arg mav_name)" doc="Log file name prefix"/>
 
     <arg name="paused" default="false" doc="Start Gazebo paused"/>
-    <arg name="gui" default="false" doc="Start Gazebo GUI"/>
+    <arg name="gui" default="true" doc="Start Gazebo GUI"/>
     <arg name="debug" default="false"/>
     <arg name="verbose" default="false"/>
 
@@ -23,7 +23,7 @@
     <!-- Start Gazebo with the specified world -->
     <include file="$(find gazebo_ros)/launch/empty_world.launch">
         <!-- Use a world from rotors_gazebo for consistency -->
-        <arg name="world_name" value="$(find clf_cbf_qp)/worlds/helix_static.world"/>
+        <arg name="world_name" value="$(find clf_cbf_qp)/worlds/helix_dynamic.world"/>
         <!-- This line correctly passes the paused argument value -->
         <arg name="paused" value="$(arg paused)"/>
         <arg name="gui" value="$(arg gui)"/>
