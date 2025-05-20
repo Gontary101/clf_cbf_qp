@@ -16,6 +16,15 @@ class ZCBFFilter(object):
     def __init__(self, model, obstacles, params, cbf_pub=None):
         self.model = model
         self.obs   = obstacles
+        # ----------------------- hysteresis setup -----------------------
+        # distance at which we start enforcing the CBF
+        self.cbf_enter      = rospy.get_param("~cbf_active_range",    2.0)
+        # how much extra before we drop the obstacle from the QP
+        self._hyst_margin   = rospy.get_param("~cbf_hysteresis_margin", 0.5)
+        # exit distance = enter + margin
+        self.cbf_exit       = self.cbf_enter + self._hyst_margin
+        # one boolean flag per obstacle to track if it's "active"
+        self._obs_active    = [False] * len(self.obs)
         self.beta  = params.get("zcbf_beta",   1.5)
         self.a1    = params.get("zcbf_a1",     1.5)
         self.a2    = params.get("zcbf_a2",     1.6)
@@ -58,18 +67,27 @@ class ZCBFFilter(object):
         # --- new: minimum collective thrust allowed ------------------------
         thr_min_fac = rospy.get_param("~min_thrust_factor", 0.10)  # same name as YAML
         U1_min      = thr_min_fac * m * g                         # [N]
-        # --- new: ignore obstacles farther than this (for numerical health)
-        cbf_range   = rospy.get_param("~cbf_active_range", 2.0)   # [m]
 
         p = state["p_vec"];  v = state["v_vec"]
         R = state["R_mat"];  Om = state["omega_body"]
 
         G_list, h_list = [], []
 
-        for o in self.obs:
-            # early-reject if far away
-            if np.linalg.norm(state["p_vec"] - o[:3]) > cbf_range:
-                continue
+        for i, o in enumerate(self.obs):
+            # hysteresis gating: enter at cbf_enter, exit at cbf_exit
+            dist = np.linalg.norm(p - o[:3])
+            if not self._obs_active[i]:
+                # not yet active → only start if within enter distance
+                if dist > self.cbf_enter:
+                    continue
+                else:
+                    self._obs_active[i] = True
+            else:
+                # already active → keep until we exceed exit distance
+                if dist > self.cbf_exit:
+                    self._obs_active[i] = False
+                    continue
+
             ox, oy, oz, vx, vy, vz, ax, ay, az, r_o = o
             x_o, V_o, A_o = np.array([ox, oy, oz]), \
                             np.array([vx, vy, vz]), \

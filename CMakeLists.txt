@@ -172,10 +172,9 @@ catkin_install_python(PROGRAMS
   src/modular/plotters/multi_straight_line_plotter.py
   src/modular/utils/dynamics_utils.py
   src/hummingbird/main_hummingbird.py
-  src/hummingbird/main_hummingbird_all_obs.py
   src/hummingbird/main_hummingbird_all_obs_tan.py
-  src/hummingbird/main_hummingbird_multi_straight_line.py
   src/plotters/helix_plotter.py
+  src/hummingbird/main_helix.py
 
   # If you have other python scripts in src/ or src/modular/ you want to install:
   # src/helix_plotter.py  <-- Assuming this is also one you want to make available

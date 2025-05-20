@@ -336,7 +336,10 @@ class Plotter(object):
             for i in range(W.shape[1]):
                 ax.plot(Tw, W[:,i], label='M'+str(i+1))
             
-            ax.set_ylim(*self.w_lim)
+            # Calculate dynamic y-axis limits with some padding
+            y_min = np.min(W) * 0.95  # 5% padding below
+            y_max = np.max(W) * 1.05  # 5% padding above
+            ax.set_ylim(y_min, y_max)
             ax.set_xlabel('t (s)')
             ax.set_ylabel('omega (rad/s)')
             ax.grid(True)
@@ -376,7 +379,6 @@ with open(sys.argv[1], 'rb') as f:
     
 Tw = data['Tw']
 W = data['W']
-w_lim = data['w_lim']
 takeoff_duration = data['takeoff_duration']
 hover_duration = data['hover_duration']
 
@@ -385,7 +387,10 @@ fig, ax = plt.subplots(figsize=(12,6))
 for i in range(W.shape[1]):
     ax.plot(Tw, W[:,i], label='M'+str(i+1))
 
-ax.set_ylim(*w_lim)
+# Calculate dynamic y-axis limits with some padding
+y_min = np.min(W) * 0.95  # 5% padding below
+y_max = np.max(W) * 1.05  # 5% padding above
+ax.set_ylim(y_min, y_max)
 ax.set_xlabel('t (s)')
 ax.set_ylabel('omega (rad/s)')
 ax.grid(True)
@@ -427,7 +432,6 @@ plt.show()
             plot_data = {
                 'Tw': Tw,
                 'W': W,
-                'w_lim': self.w_lim,
                 'takeoff_duration': self.takeoff_duration,
                 'hover_duration': self.hover_duration
             }

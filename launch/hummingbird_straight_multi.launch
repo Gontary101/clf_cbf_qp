@@ -35,7 +35,7 @@
   <arg name="k_trajatt1_common" default="14.0" /><arg name="k_trajatt2_common" default="28.0" />
   <!-- ZCBF Parameters -->
   <arg name="zcbf_beta_common"   default="1.5" /><arg name="zcbf_a1_common" value="1.5" />
-  <arg name="zcbf_a2_common"     default="1.6" /><arg name="zcbf_gamma_common" value="6.4" />
+  <arg name="zcbf_a2_common"     default="1.6" /><arg name="zcbf_gamma_common" value="8.4" />
   <arg name="zcbf_kappa_common"  default="0.8" /><arg name="zcbf_order_a_common" value="0" />
   <!-- Obstacles -->
   <arg name="dynamic_obstacles_common" default="[]" />

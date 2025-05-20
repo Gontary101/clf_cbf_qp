@@ -1,0 +1,1 @@
+from .obstacle_parser import parse_obstacles

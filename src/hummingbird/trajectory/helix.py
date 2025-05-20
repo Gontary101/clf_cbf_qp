@@ -9,10 +9,10 @@ class HelixTrajectory:
 
     def __init__(self):
         # parameters (can all be overridden via ROS params)
-        self.d_start    = pget("helix_start_diameter", 40.0)
-        self.d_end      = pget("helix_end_diameter",   15.0)
-        self.height     = pget("helix_height",         30.0)
-        self.laps       = pget("helix_laps",           4.0)
+        self.d_start    = pget("helix_start_diameter", 20.0)
+        self.d_end      = pget("helix_end_diameter",   10.0)
+        self.height     = pget("helix_height",         15.0)
+        self.laps       = pget("helix_laps",           3.0)
         self.omega      = pget("trajectory_omega",     0.07)
         self.yaw_fix    = math.radians(pget("fixed_yaw_deg", 0.0))
 

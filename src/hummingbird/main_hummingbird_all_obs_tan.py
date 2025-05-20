@@ -11,14 +11,13 @@ from tf.transformations import euler_from_quaternion
 from gazebo_msgs.msg import ModelStates 
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-from cvxopt import matrix, solvers          # ← solve the unified QP here
+from cvxopt import matrix, solvers
 
 from trajectory.straight_line import StraightLineTrajectory
 import utils.dynamics_utils2 as dyn
 from utils.dynamics_utils2 import pget, rotation_matrix
 from clf_backstepping import CLFBackstepping
 from obstacle_avoidance.zcbf_constraint     import ZCBFFilter as SAFETYFilter
-#from obstacle_avoidance.C3BF_filter import C3BFFilter as SAFETYFilter
 
 LOG_T = 1.0
 DBG   = False
@@ -33,9 +32,9 @@ class State(Enum):
 class Controller(object):
 
     def __init__(self):
-        self.ns     = rospy.get_namespace().strip('/') # Get namespace automatically
-        if not self.ns: # Handle case where namespace might be global
-             self.ns = pget("namespace", "iris") # Fallback to param if needed
+        self.ns     = rospy.get_namespace().strip('/')
+        if not self.ns:
+             self.ns = pget("namespace", "iris")
              rospy.logwarn("Could not determine namespace automatically, using param: %s", self.ns)
         else:
              rospy.loginfo("Controller running in namespace: %s", self.ns)
@@ -63,7 +62,6 @@ class Controller(object):
 
         self.clf = CLFBackstepping(self.model)
 
-        # --- Multi-Drone Setup ---
         try:
             all_ns_str = pget("all_drone_namespaces", "[]")
             self.all_drone_namespaces = ast.literal_eval(all_ns_str)
@@ -75,21 +73,14 @@ class Controller(object):
             rospy.signal_shutdown("Configuration Error")
             return
 
-        # Store state of other drones {ns: {'pose': Pose, 'twist': Twist, 'time': Time}}
         self.other_drone_states = {
             other_ns: {'pose': None, 'twist': None, 'time': rospy.Time(0)}
             for other_ns in self.all_drone_namespaces if other_ns != self.ns
         }
-        self.state_timeout = rospy.Duration(1.0) # Consider other drone state stale after 1s
+        self.state_timeout = rospy.Duration(1.0)
 
-        # Static obstacles parsed from param (can still be used if needed)
         self.static_obs = self._parse_obstacles()
 
-        # ──────────────────────────────────────────────────────────────
-        # NEW – cap "active" spheres that the CBF sees in a single step
-        # A handful of nearest spheres is enough to guarantee safety
-        # while keeping the QP small and well-conditioned.
-        # ──────────────────────────────────────────────────────────────
         self.max_active_spheres = pget("zcbf_max_active_spheres", 5)
 
         cbf_par  = dict(beta   = pget("zcbf_beta",   1.5),
@@ -100,12 +91,9 @@ class Controller(object):
                         order_a= pget("zcbf_order_a", 0))
         self.cbf_pub = rospy.Publisher("~cbf/slack",
                                        Float64MultiArray, queue_size=1)
-        # Initialize CBF with empty dynamic obstacles; will be updated in loop
         self.zcbf = SAFETYFilter(self.model, np.empty((0, 10)), cbf_par,
                                cbf_pub=self.cbf_pub)
 
-        # --- Publishers ---
-        # Use relative topic names (will be automatically namespaced)
         self.cmd_pub = rospy.Publisher("command/motor_speed",
                                        Actuators, queue_size=1)
         misc_topics = [
@@ -118,8 +106,7 @@ class Controller(object):
         ]
         self.pubs = {n: rospy.Publisher("~" + n, m, queue_size=1) for n, m in misc_topics}
 
-        # --- State Variables ---
-        self.last        = None # Stores Odometry derived from ModelStates for this drone
+        self.last        = None
         self.state       = State.TAKEOFF
         self.t0_traj     = None
         self.hover_ok_t  = None
@@ -131,8 +118,6 @@ class Controller(object):
         self.trajectory.xy_offset = None
         self.trajectory.z_offset  = None
 
-        # --- Subscribers ---
-        # Subscribe to global ModelStates for own state and others' states
         self.model_state_sub = rospy.Subscriber("/gazebo/model_states",
                                                 ModelStates, self.cb_model,
                                                 queue_size=2, buff_size=2**20)
@@ -142,12 +127,10 @@ class Controller(object):
                                  self.loop, reset=True)
         rospy.on_shutdown(self.shutdown)
 
-        # ------------------ obstacle-shape specs (optional) ---------------
-        raw_spec = pget("gazebo_obstacle_shapes", {})  # may be dict or string
+        raw_spec = pget("gazebo_obstacle_shapes", {})
         if isinstance(raw_spec, dict):
             self.gz_shape_specs = raw_spec
         else:
-            # try to parse a string representation
             try:
                 parsed = ast.literal_eval(raw_spec)
                 if isinstance(parsed, dict):
@@ -159,21 +142,16 @@ class Controller(object):
                               self.ns, e)
                 self.gz_shape_specs = {}
 
-        # per-model cached spheres built in the *last* ModelStates callback
-        self.gz_obstacle_spheres = []  # list of 10-element lists
+        self.gz_obstacle_spheres = []
         self.max_spheres         = pget("zcbf_max_spheres", 150)
         self.default_obs_r       = pget("default_obstacle_radius", 0.35)
         self.decomp_r_default    = pget("sphere_decomp_r", 0.25)
-        # how much to inflate every obstacle (m)
         self.obs_inflation       = pget("obstacle_inflation", 0.30)
-        # --- NEW: CBF pre-filter knobs ---------------------------------
-        self.cbf_active_range    = pget("cbf_active_range", 2.0)   # [m]
-        self.z_ground_tol        = pget("z_ground_tol",   0.0)     # [m]
-        # visualize once?
+        self.cbf_active_range    = pget("cbf_active_range", 2.0)
+        self.z_ground_tol        = pget("z_ground_tol",   0.0)
         self.visualize_spheres   = pget("visualize_spheres", False)
         self._viz_done           = False
 
-        # ====================================================== util: shape → spheres ==
     def _box_to_spheres(self, size, r):
         dx, dy, dz = size
         nx = max(1, int(math.ceil(dx / (2*r))))
@@ -183,12 +161,10 @@ class Controller(object):
         ys = np.linspace(-dy/2 + r, dy/2 - r, ny)
         zs = np.linspace(-dz/2 + r, dz/2 - r, nz)
 
-        # ONLY the faces of the box
         pts = []
         for x in xs:
           for y in ys:
             for z in zs:
-              # garder si sur une face en x OU en y
               if abs(x - xs[0])<1e-6 or abs(x - xs[-1])<1e-6 \
               or abs(y - ys[0])<1e-6 or abs(y - ys[-1])<1e-6:
                 pts.append((x,y,z))
@@ -196,33 +172,31 @@ class Controller(object):
         return pts
 
     def _rot_mat_from_quat(self, q):
-        """convert geometry_msgs Quaternion to 3×3 rot-matrix"""
         R = rotation_matrix(*euler_from_quaternion([q.x, q.y, q.z, q.w]))
         return np.array(R)
 
     def _spheres_for_model(self, name, pose, r_sub):
-        """build global-frame sphere list for one box-type model"""
-        if name not in self.gz_shape_specs:      # fallback → single sphere
+        if name not in self.gz_shape_specs:
             x,y,z = pose.position.x, pose.position.y, pose.position.z
             return [[x, y, z, 0,0,0, 0,0,0, r_sub]]
 
         inf = self.obs_inflation
         spec = self.gz_shape_specs[name]
         size = spec['size']
-        size = [s + 2*inf for s in size]        # inflate
-        local_offsets = self._box_to_spheres(size, r_sub)  # (N,3)
+        size = [s + 2*inf for s in size]
+        local_offsets = self._box_to_spheres(size, r_sub)
         R = self._rot_mat_from_quat(pose.orientation)
-        centres = pose.position.__class__          # just to get the type
+        centres = pose.position.__class__
         c = np.array([pose.position.x, pose.position.y, pose.position.z])
         world_pts = (R.dot(local_offsets.T)).T + c
-        zeros = np.zeros((world_pts.shape[0], 6))  # vx vy vz ax ay az = 0
+        zeros = np.zeros((world_pts.shape[0], 6))
         radii = np.full((world_pts.shape[0], 1), r_sub)
         return np.hstack((world_pts, zeros, radii)).tolist()
 
     def _parse_obstacles(self):
         default_obs_str = "[]"
         try:
-            raw = pget("dynamic_obstacles", default_obs_str) # Keep param name for potential static obs
+            raw = pget("dynamic_obstacles", default_obs_str)
             lst = ast.literal_eval(raw)
             if not isinstance(lst, list): lst = []
             if lst and not all(isinstance(o, (list, tuple)) and len(o) == 10 and all(isinstance(n, (int, float)) for n in o) for o in lst): lst = []
@@ -240,36 +214,32 @@ class Controller(object):
                 return np.empty((0,10), dtype=float)
 
     def cb_model(self, msg):
-        now = rospy.Time.now() # Use consistent time
+        now = rospy.Time.now()
         found_self = False
-        tmp_spheres = []  # fresh list each ModelStates message
+        tmp_spheres = []
         for i, name in enumerate(msg.name):
-            # Update own state
             if name == self.ns:
                 o = Odometry()
                 o.header.stamp    = now
                 o.header.frame_id = "world"
-                o.child_frame_id  = self.ns + "/base_link" # Standard convention
+                o.child_frame_id  = self.ns + "/base_link"
                 o.pose.pose  = msg.pose[i]
                 o.twist.twist = msg.twist[i]
                 self.last = o
                 found_self = True
-            # Update other drone states
             elif name in self.other_drone_states:
                 self.other_drone_states[name]['pose'] = msg.pose[i]
                 self.other_drone_states[name]['twist'] = msg.twist[i]
                 self.other_drone_states[name]['time'] = now
             else:
-                # any *other* Gazebo model is treated as an obstacle
                 r_sub = float(self.gz_shape_specs.get(name, {})
                                              .get('sphere_r', self.decomp_r_default))
                 tmp_spheres.extend(self._spheres_for_model(
                                                 name, msg.pose[i], r_sub))
 
-        if not found_self and self.last is None: # Only warn if never found
+        if not found_self and self.last is None:
              rospy.logwarn_throttle(5.0, "[%s] Own state not found in /gazebo/model_states", self.ns)
 
-        # ---------------- cap & store spheres for loop() --------------------
         if len(tmp_spheres) > self.max_spheres:
             rospy.logwarn_throttle(1.0,
                 "[%s] Too many obstacle spheres (%d > %d); truncating.",
@@ -287,9 +257,7 @@ class Controller(object):
             t_traj = (now - self.t0_traj).to_sec()
         else:
             t_traj = 0.0
-        # ----------------------------------------------------------------
 
-        # ----- current state -------------------------------------------------
         p  = self.last.pose.pose.position
         q  = self.last.pose.pose.orientation
         v  = self.last.twist.twist.linear
@@ -298,8 +266,8 @@ class Controller(object):
         phi, th, psi = euler_from_quaternion((q.x, q.y, q.z, q.w))
         R_mat = rotation_matrix(phi, th, psi)
         p_vec = np.array([p.x, p.y, p.z])
-        v_world   = np.array([v.x, v.y, v.z]) # Gazebo twist is in world frame
-        omega_b   = np.dot(R_mat.T, np.array([w.x, w.y, w.z])) # Gazebo angular twist is in body frame
+        v_world   = np.array([v.x, v.y, v.z])
+        omega_b   = np.dot(R_mat.T, np.array([w.x, w.y, w.z]))
 
         vd = ad_nom = np.zeros(3)
         gains = self.g_take
@@ -372,35 +340,27 @@ class Controller(object):
             tgt   = posd
             gains = self.g_traj
 
-        else: # LAND, IDLE
+        else:
             tgt   = p_vec
             vd    = ad_nom = np.zeros(3)
             yd, rd = psi, 0.0
             gains = self.g_take
 
-        # --- Build Dynamic Obstacle List for CBF ---
         dynamic_obs_list = []
         for other_ns, other_state in self.other_drone_states.items():
             if other_state['pose'] is not None and (now - other_state['time']) < self.state_timeout:
                 op = other_state['pose'].position
                 ov = other_state['twist'].linear
-                # Use zero acceleration for other drones as it's not directly available
-                # The CBF formulation expects [x,y,z, vx,vy,vz, ax,ay,az, radius]
                 obs_entry = [op.x, op.y, op.z, ov.x, ov.y, ov.z, 0.0, 0.0, 0.0, self.model.r_drone]
                 dynamic_obs_list.append(obs_entry)
-            #else:
-            #    rospy.logwarn_throttle(5.0, "[%s] State for drone '%s' is stale or missing.", self.ns, other_ns)
 
-        # Combine: other drones + per-Gazebo-model spheres + static param-obs
         dynamic_obs_array = np.array(dynamic_obs_list, dtype=float)
         parts = [a for a in (dynamic_obs_array,
                              self.gz_obstacle_spheres,
                              self.static_obs) if a.size]
         if parts:
             combined = np.vstack(parts)
-            # 1) drop anything below ground plane
             combined = combined[combined[:,2] >= self.z_ground_tol - 1e-3]
-            # 2) keep only spheres within active range
             dists    = np.linalg.norm(combined[:,:3] - p_vec, axis=1)
             combined = combined[dists <= self.cbf_active_range]
         else:
@@ -408,13 +368,11 @@ class Controller(object):
 
         combined_obs = combined
 
-        # ── prune to the N closest spheres ────────────────────────────
         if combined_obs.size and self.max_active_spheres > 0:
-            d2 = np.sum((combined_obs[:, :3] - p_vec) ** 2, axis=1)   # squared dist
+            d2 = np.sum((combined_obs[:, :3] - p_vec) ** 2, axis=1)
             keep = np.argsort(d2)[:self.max_active_spheres]
             combined_obs = combined_obs[keep]
 
-        # optional one-shot picture
         if pget("visualize_spheres", False) and not hasattr(self, "_viz_drawn"):
             self._viz_drawn = True
             if combined_obs.size:
@@ -425,10 +383,8 @@ class Controller(object):
                 ax.set_xlabel('X'); ax.set_ylabel('Y'); ax.set_zlabel('Z')
                 plt.show()
 
-        # Update the obstacles used by the ZCBF filter instance for this cycle
         self.zcbf.obs = combined_obs
 
-        # ----- unified CLF-CBF QP -------------------------------------------
         st = dict(p_vec=p_vec, v_vec=v_world, phi=phi, th=th,
                   psi=psi,  omega_body=omega_b, R_mat=R_mat)
         ref = dict(tgt=tgt, vd=vd, ad=ad_nom, yd=yd, rd=rd, t_traj_secs=t_traj)
@@ -439,10 +395,9 @@ class Controller(object):
         st['ref']    = ref
         st['ad_nom'] = ad_nom
 
-        # build CBF inequalities once
         G_all, h_all = self.zcbf.constraints(st)
 
-        if G_all.size:                       # there are active constraints
+        if G_all.size:
             P = matrix(np.eye(4))
             q = matrix(-U_nom)
             G = matrix(G_all)
@@ -461,10 +416,8 @@ class Controller(object):
                     "[%s] CLF-CBF QP failed – using nominal U", self.ns)
                 U = U_nom
         else:
-            # no CBF constraints → pure tracking
             U = U_nom
 
-        # ----- motor allocation & publish ------------------------------------
         w_cmd, w_sq = self.model.thrust_torques_to_motor_speeds(U)
 
         m_msg = Actuators()
@@ -472,7 +425,6 @@ class Controller(object):
         m_msg.angular_velocities = w_cmd.tolist()
         self.cmd_pub.publish(m_msg)
 
-        # -- debug / telemetry
         self.pubs["control/state"].publish(String(data=self.state.name))
         self.pubs["control/U"].publish(Float64MultiArray(data=U))
         self.pubs["control/omega_sq"].publish(Float64MultiArray(data=w_sq))
@@ -499,7 +451,6 @@ class Controller(object):
                 tgt[0], tgt[1], tgt[2],
                 U[0], U[1], U[2], U[3])
 
-        # Add position and attitude logging
         rospy.loginfo_throttle(1.0,
             "[%s] Pos=[%.2f %.2f %.2f] | PosErr=[%.2f %.2f %.2f] | Att=[%.1f %.1f %.1f]° | AttErr=[%.1f %.1f %.1f]°",
             self.ns,
@@ -507,7 +458,6 @@ class Controller(object):
             ad_nom[0], ad_nom[1], ad_nom[2],
             math.degrees(phi), math.degrees(th), math.degrees(psi),
             math.degrees(ad_nom[0]), math.degrees(ad_nom[1]), math.degrees(ad_nom[2]))
-
 
     def shutdown(self):
         rospy.loginfo("[%s] Shutting down controller.", self.ns)
@@ -520,7 +470,7 @@ class Controller(object):
             rate.sleep()
 
 if __name__ == "__main__":
-    rospy.init_node("clf_hummingbird_trajectory_controller", anonymous=True) # Node name is generic, namespace distinguishes
+    rospy.init_node("clf_hummingbird_trajectory_controller", anonymous=True)
     try:
         controller = Controller()
         rospy.spin()
