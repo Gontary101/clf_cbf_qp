@@ -16,7 +16,7 @@ from cvxopt import matrix, solvers          # ← solve the unified QP here
 from trajectory.straight_line import StraightLineTrajectory
 import utils.dynamics_utils2 as dyn
 from utils.dynamics_utils2 import pget, rotation_matrix
-from clf_full_dynamics import CLFBackstepping
+from clf_backstepping import CLFBackstepping
 from obstacle_avoidance.zcbf_constraint     import ZCBFFilter as SAFETYFilter
 #from obstacle_avoidance.C3BF_filter import C3BFFilter as SAFETYFilter
 

@@ -282,7 +282,9 @@ class Controller(object):
         out = self.clf.compute(st, ref, gains)      # -> dict
         U_nom = out["U_nom"]
 
-  
+        # ----- ZCBF safety filter -------------------------------------------
+        # Pass current state name (string) to ZCBF filter
+        #U, _ = self.zcbf.filter(self.state.name, U_nom, st, out)
                 # --- If we're using the ECBFFormsFilter it expects these extras ---
         st['gains']  = gains     # from either takeoff or traj
         st['ref']    = ref       # original ref dict {tgt, vd, ad, yd, rd}
