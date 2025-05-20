@@ -66,11 +66,11 @@ class Controller(object):
 
         # ------------- obstacle list & ZCBF filter ---------------------------
         self.obs = self._parse_obstacles()
-        cbf_par  = dict(beta   = pget("zcbf_beta",   1.0),
-                        a1     = pget("zcbf_a1",     0.2),
-                        a2     = pget("zcbf_a2",     1.0),
-                        gamma  = pget("zcbf_gamma",  2.4),
-                        kappa  = pget("zcbf_kappa",  1.0),
+        cbf_par  = dict(beta   = pget("zcbf_beta",   1.5),
+                        a1     = pget("zcbf_a1",     1.5),
+                        a2     = pget("zcbf_a2",     1.6),
+                        gamma  = pget("zcbf_gamma",  8.4),
+                        kappa  = pget("zcbf_kappa",  0.8),
                         order_a= pget("zcbf_order_a", 0)) # Defaults, will be overridden
         self.cbf_pub = rospy.Publisher("~cbf/slack",
                                        Float64MultiArray, queue_size=1)
