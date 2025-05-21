@@ -77,15 +77,6 @@
     <param name="hover_vel_threshold" value="0.25" />
     <param name="hover_stabilization_secs" value="1.0" />
 
-    <param name="k_takepos1" value="1.5" />
-    <param name="k_takepos2" value="5.5" />
-    <param name="k_takeatt1" value="9.0" />
-    <param name="k_takeatt2" value="18.0" />
-    <!-- Trajectory Gains -->
-    <param name="k_trajpos1" value="2.2" />
-    <param name="k_trajpos2" value="6.5" />
-    <param name="k_trajatt1" value="9.0" />
-    <param name="k_trajatt2" value="18.0" />
 
     <param name="dynamic_obstacles"
             value="[
@@ -100,6 +91,6 @@
 
 
 
-    <param name="cbf_gamma" value="100.0"/>
+
   </node>
 </launch>

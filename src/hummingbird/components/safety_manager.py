@@ -1,9 +1,17 @@
-from obstacle_avoidance.zcbf_constraint import ZCBFFilter as SAFETYFilter
-# from obstacle_avoidance.ecbf_forms_filter import ECBFFormsFilter as SAFETYFilter
-# from obstacle_avoidance.C3BF_filter import C3BFFilter as SAFETYFilter
+import rospy
+
+# pick which filter backend via param: "zcbf", "c3bf", or "c3bf_adapter"
+filter_type = rospy.get_param("~safety_filter_type", "zcbf").lower()
+
+if filter_type == "c3bf_adapter":
+    from components.c3bf_adapter import C3BFFilterAdapter as SAFETYFilter
+elif filter_type == "c3bf":
+    from obstacle_avoidance.C3BF_constraint import C3BFFilter as SAFETYFilter
+else:
+    from obstacle_avoidance.zcbf_constraint import ZCBFFilter as SAFETYFilter
+
 from cvxopt import matrix, solvers
 import numpy as np
-import rospy
 from std_msgs.msg import Float64MultiArray
 
 class SafetyManager(object):
