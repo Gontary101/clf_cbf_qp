@@ -15,7 +15,7 @@ class ZCBFFilter(object):
         self.obs   = obstacles
         self.cbf_enter      = rospy.get_param("~cbf_active_range",    2.0)
         self._hyst_margin   = rospy.get_param("~cbf_hysteresis_margin", 0.5)
-        self.cbf_exit       = self.cbf_enter + self._hyst_margin
+        self.cbf_exit       = self.cbf_enter - self._hyst_margin
         self._obs_active    = [False] * len(self.obs)
         self.beta  = params.get("zcbf_beta",   1.5)
         self.a1    = params.get("zcbf_a1",     1.5)
@@ -71,8 +71,7 @@ class ZCBFFilter(object):
             r_dot   = v - V_o
             q       = R[:, 2]
             s       = np.dot(r, q)
-            s_clamped = max(s, self.s_min)
-            sigma   = -self.a1 * math.atan(self.a2 * s_clamped)
+            sigma   = -self.a1 * math.atan(self.a2 * s)
 
             sig_p   = -self.a1 * self.a2 / (1.0 + (self.a2 * s) ** 2)
             sig_pp  =  2.0 * self.a1 * (self.a2 ** 2) * s / (1.0 + (self.a2 * s) ** 2) ** 2

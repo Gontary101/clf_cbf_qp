@@ -53,6 +53,8 @@ dynamics_utils.pyc
 ecbf_forms_filter.pyc
 zcbf_filter.pyc
 cleanup.py
+main_helix2.py
+flight_state_manager_opt.py
 
 # Ignore all Python compiled files
 *.pyc

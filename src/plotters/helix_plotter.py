@@ -137,7 +137,12 @@ class Plotter(object):
 
     def cb_omega(self,msg):
         if self.rec and not self.done:
-            self.data['w_t'].append(rospy.Time.now().to_sec())
+            # record time *since recording start* for consistent phase alignment
+            if self.t0 is not None:
+                self.data['w_t'].append((rospy.Time.now() - self.t0).to_sec())
+            else:
+                # fallback if somehow called before odom stamps set
+                self.data['w_t'].append(0.0)
             self.data['w'].append(np.array(msg.data))
 
     def cb_thrust(self,msg):
@@ -326,15 +331,33 @@ class Plotter(object):
 
 
         if self.data['w']:
-            Tw=np.array(self.data['w_t'])-self.t0.to_sec()
+            # use the already-relative ω timestamps
+            Tw = np.array(self.data['w_t'])
             W=np.sqrt(np.maximum(np.stack(self.data['w']),0))
             if self.use_filt and W.shape[0]>=self.fw_w:
                 for i in range(W.shape[1]):W[:,i]=FILT(W[:,i],self.fw_w,self.fp_w)
             
+            # Remove first 5 seconds of data
+            mask = Tw >= 5.0
+            Tw = Tw[mask]
+            W = W[mask]
+            
             # Create figure with non-interactive backend for saving
             fig, ax = plt.subplots(figsize=(12,6))
+            
+            # --- highlight flight phases first (low zorder) ---
+            takeoff_end = max(5.0, self.takeoff_duration)  # Ensure takeoff_end is at least 5 seconds
+            hover_end   = takeoff_end + self.hover_duration
+            ax.axvspan(5.0,          takeoff_end, color='green',  alpha=0.1,
+                       label='Takeoff Phase',    zorder=0)
+            ax.axvspan(takeoff_end,  hover_end,   color='yellow', alpha=0.1,
+                       label='Hover Phase',      zorder=0)
+            ax.axvspan(hover_end,    max(Tw),     color='blue',   alpha=0.1,
+                       label='Trajectory Phase', zorder=0)
+
+            # --- plot angular velocities on top ---
             for i in range(W.shape[1]):
-                ax.plot(Tw, W[:,i], label='M'+str(i+1))
+                ax.plot(Tw, W[:,i], label='M'+str(i+1), zorder=1)
             
             # Calculate dynamic y-axis limits with some padding
             y_min = np.min(W) * 0.95  # 5% padding below
@@ -343,12 +366,6 @@ class Plotter(object):
             ax.set_xlabel('t (s)')
             ax.set_ylabel('omega (rad/s)')
             ax.grid(True)
-            
-            takeoff_end = self.takeoff_duration
-            hover_end = takeoff_end + self.hover_duration
-            ax.axvspan(0, takeoff_end, color='green',  alpha=0.1, label='Takeoff Phase')
-            ax.axvspan(takeoff_end, hover_end, color='yellow', alpha=0.1, label='Hover Phase')
-            ax.axvspan(hover_end, max(Tw), color='blue', alpha=0.1, label='Trajectory Phase')
             
             handles, labels = ax.get_legend_handles_labels()
             by_label = dict(zip(labels, handles))

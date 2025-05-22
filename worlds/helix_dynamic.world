@@ -110,7 +110,7 @@
     <!-- Obstacle 2: (-2.601, -8.005, 7.750), Plugin R=8.417 -->
     <model name='sphere_obstacle_2'> <!-- Was sphere_obstacle_3 in original -->
       <static>false</static>
-      <pose>-2.601 -8.005 7.750 0 0 0</pose>
+      <pose>-2.601 -8.005 6.750 0 0 0</pose>
       <link name='link'>
         <kinematic>true</kinematic>
         <collision name='collision'>
@@ -133,7 +133,7 @@
       <plugin name="circle_motion" filename="libcircle_motion_plugin.so">
         <center_x>0.0</center_x>
         <center_y>0.0</center_y>
-        <center_z>7.750</center_z>
+        <center_z>6.750</center_z>
         <radius>8.417</radius> <!-- sqrt(x^2+y^2) -->
         <speed>0</speed>
       </plugin>
