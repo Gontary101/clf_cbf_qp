@@ -33,7 +33,6 @@ urdf.rviz
 # Ignore ROS launch files
 Kwad_gazebo.launch
 Kwad_rviz.launch
-config/
 smc_position_controller.py
 smc_iris_controller.py
 smc_position_controller.launch

@@ -48,7 +48,7 @@ class SafetyManager(object):
             h_mat = matrix(h_all)
 
             try:
-                solvers.options['show_progress'] = False
+                solvers.options['show_progress'] = rospy.get_param("~qp_solver_show_progress", False)
                 sol = solvers.qp(P, q_mat, G_mat, h_mat)
                 if sol['status'] == 'optimal':
                     U_filtered = np.asarray(sol['x']).flatten()

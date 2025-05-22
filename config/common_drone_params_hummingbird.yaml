@@ -1,0 +1,12 @@
+mass: 0.68
+gravity: 9.81
+I_x: 0.007
+I_y: 0.007
+I_z: 0.012
+motor_constant: 8.54858e-06
+moment_constant: 1.3677728e-07
+max_rot_velocity: 838.0
+min_thrust_factor: 0.1
+gravity_comp_factor: 1.05
+max_tilt_angle_deg: 30.0
+drone_radius: 0.4

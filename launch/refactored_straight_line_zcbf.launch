@@ -1,0 +1,114 @@
+<launch>
+    <!-- Arguments -->
+    <arg name="namespace" default="hummingbird"/>
+    <arg name="world_name" default="straight_line_obstacles"/> <!-- Assuming a world with some obstacles -->
+    <arg name="debug" default="false"/>
+    <arg name="gui" default="true"/>
+    <arg name="paused" default="false"/>
+    <arg name="verbose" default="false"/>
+    <arg name="log_file" default="$(find hummingbird_control)/logs/$(arg namespace)_refactored_controller.log"/>
+    <arg name="extra_gazebo_args" default=""/>
+
+    <!-- Set use_sim_time -->
+    <param name="/use_sim_time" value="true" />
+
+    <!-- Gazebo World -->
+    <include file="$(find gazebo_ros)/launch/empty_world.launch">
+        <arg name="world_name" value="$(find hummingbird_control)/worlds/$(arg world_name).world"/>
+        <arg name="debug" value="$(arg debug)" />
+        <arg name="gui" value="$(arg gui)" />
+        <arg name="paused" value="$(arg paused)" />
+        <arg name="use_sim_time" value="true" />
+        <arg name="headless" value="$(eval not arg('gui'))" />
+        <arg name="verbose" value="$(arg verbose)"/>
+        <arg name="extra_gazebo_args" value="$(arg extra_gazebo_args)"/>
+    </include>
+
+    <!-- Spawn Hummingbird Drone -->
+    <!-- The group namespace is applied to the spawn_model node name and the robot_description parameter path -->
+    <group ns="$(arg namespace)">
+        <param name="robot_description" command="$(find xacro)/xacro '$(find rotors_description)/urdf/my_hummingbird.xacro' --inorder namespace:=$(arg namespace) enable_ground_truth:=true enable_logging:=true log_file:=$(arg log_file)"/>
+        <!-- The model name in Gazebo will be $(arg namespace) -->
+        <node name="spawn_hummingbird" pkg="gazebo_ros" type="spawn_model" args="-urdf -param robot_description -model $(arg namespace) -x 0 -y 0 -z 0.3 -R 0 -P 0 -Y 0" respawn="false" output="screen"/>
+    </group>
+        
+    <!-- The refactored controller node. 
+         It's launched in the global namespace, but internally uses the 'namespace' parameter 
+         to prefix its topics and services, and to identify its state in /gazebo/model_states.
+         Parameters loaded by the node (e.g. via pget) are resolved relative to its name in the launch file.
+         Parameters loaded by components using rospy.get_param("~private_param") will resolve '~' to this node's name.
+    -->
+    <node name="clf_hummingbird_refactored_controller_$(arg namespace)" pkg="hummingbird_control" type="main_hummingbird_refactored.py" output="screen">
+        <!-- Basic Parameters -->
+        <param name="namespace" type="string" value="$(arg namespace)"/> <!-- This tells the script which drone it is controlling -->
+        <param name="use_model_states" type="bool" value="true"/> 
+        <param name="control_rate" type="double" value="200.0"/> 
+        <param name="motor_command_topic" type="string" value="command/motor_speed"/> <!-- This is global as per main_hummingbird_all_obs_tan -->
+        <param name="model_states_topic" type="string" value="/gazebo/model_states"/>
+        <param name="odometry_topic_suffix" type="string" value="/ground_truth/odometry"/> <!-- Controller appends this to its 'namespace' param value -->
+        <param name="loop_log_period" type="double" value="0.5"/>
+        <param name="debug_logging_enabled" type="bool" value="true"/>
+
+        <!-- Takeoff and Hover Parameters -->
+        <param name="takeoff_x" type="double" value="0.0"/> 
+        <param name="takeoff_y" type="double" value="0.0"/>
+        <param name="takeoff_z" type="double" value="1.0"/> 
+        <param name="hover_pos_threshold" type="double" value="0.1"/>
+        <param name="hover_vel_threshold" type="double" value="0.05"/>
+        <param name="hover_stabilization_secs" type="double" value="1.5"/>
+
+        <!-- Gains -->
+        <param name="k_takepos1" type="double" value="0.22"/>
+        <param name="k_takepos2" type="double" value="0.8"/>
+        <param name="k_takeatt1" type="double" value="2.05"/>
+        <param name="k_takeatt2" type="double" value="4.1"/>
+        <param name="k_trajpos1" type="double" value="0.75"/>
+        <param name="k_trajpos2" type="double" value="4.1"/>
+        <param name="k_trajatt1" type="double" value="16.0"/>
+        <param name="k_trajatt2" type="double" value="32.0"/>
+
+        <!-- CBF Parameters -->
+        <param name="zcbf_beta" type="double" value="1.5"/>
+        <param name="zcbf_a1" type="double" value="1.5"/>
+        <param name="zcbf_a2" type="double" value="1.6"/>
+        <param name="zcbf_gamma" type="double" value="8.4"/>
+        <param name="zcbf_kappa" type="double" value="0.8"/>
+        <param name="zcbf_order_a" type="int" value="0"/>
+        <!-- This qp_solver_show_progress is a private param for SafetyManager -->
+        <param name="qp_solver_show_progress" type="bool" value="false"/> 
+        
+        <!-- Obstacle Processing Parameters (for GazeboObstacleProcessor) -->
+        <param name="gazebo_obstacle_shapes" type="string" 
+                value="{'moving_obstacle_box': {'type':'box', 'size':[0.5,0.5,1.0], 'sphere_r': 0.25}, 
+                        'static_cylinder': {'type':'sphere', 'radius':0.75}}"/> 
+        <param name="zcbf_max_spheres" type="int" value="50"/> 
+        <param name="default_obstacle_radius" type="double" value="0.35"/> 
+        <param name="sphere_decomp_r" type="double" value="0.25"/> 
+        <param name="obstacle_inflation" type="double" value="0.30"/> <!-- Corrected to prompt value -->
+        <param name="drone_radius" type="double" value="0.30"/> <!-- Corrected to prompt value, for other drones as obstacles -->
+        <param name="state_timeout_secs" type="double" value="1.0"/> 
+        <param name="z_ground_tol" type="double" value="0.05"/> 
+        <param name="cbf_active_range" type="double" value="3.0"/> <!-- Corrected to prompt value -->
+        <param name="zcbf_max_active_spheres" type="int" value="10"/> 
+        
+        <!-- Static Obstacles (parsed by parse_obstacles in Controller __init__) -->
+        <param name="dynamic_obstacles" type="string" value="[[3, 0, 1, 0,0,0,0,0,0, 0.5]]"/> 
+
+        <!-- Multi-drone awareness -->
+        <param name="all_drone_namespaces" type="string" value="['$(arg namespace)']"/> 
+
+        <!-- Time Scaling Parameters -->
+        <param name="time_scale_dist" type="double" value="0.8"/> 
+        <param name="time_scale_k" type="double" value="0.5"/> 
+
+        <!-- Telemetry queue size (private param for TelemetryPublisher) -->
+        <param name="telemetry_publisher_queue_size" type="int" value="1"/>
+
+        <!-- State Estimator Parameters (private param for StateEstimator) -->
+        <param name="omega_filter_alpha" type="double" value="0.5"/>
+
+        <!-- Safety Filter Type (private param for SafetyManager module) -->
+        <!-- This ensures ZCBF is used as SafetyManager loads this param with rospy.get_param("~safety_filter_type") -->
+        <param name="safety_filter_type" type="string" value="zcbf"/>
+    </node>
+</launch>
