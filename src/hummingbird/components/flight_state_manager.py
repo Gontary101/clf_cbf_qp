@@ -62,7 +62,13 @@ class FlightStateManager(object):
                     elif (current_time - self.hover_ok_t) >= self.hover_stabilization_duration:
                         rospy.loginfo("TRANSITION ->  TRAJ")
                         self.current_state, self.t0_traj = State.TRAJ, current_time
-                        self.trajectory_module.set_offsets(self.x_to, self.y_to, self.z_to)
+                        current_p_vec = current_kinematics["p_vec"]
+                        traj_p0 = self.trajectory_module.get_p0()
+                        
+                        actual_offset_x = current_p_vec[0] - traj_p0[0]
+                        actual_offset_y = current_p_vec[1] - traj_p0[1]
+                        actual_offset_z = current_p_vec[2] - traj_p0[2]
+                        self.trajectory_module.set_offsets(actual_offset_x, actual_offset_y, actual_offset_z)
                         t_traj_sec = (current_time - self.t0_traj).to_sec()
                 else:
                     self.hover_ok_t = None

@@ -32,6 +32,10 @@ class ZCBFFilter(object):
         rospy.sleep(0.1)
 
     def constraints(self, state):
+        if len(self.obs) != len(self._obs_active):
+            rospy.logdebug_throttle(5.0, "ZCBF: Obstacle count changed from %d to %d. Reinitializing _obs_active.", len(self._obs_active), len(self.obs))
+            self._obs_active = [False] * len(self.obs)
+
         if self.obs.size == 0:
             return np.empty((0, 4)), np.empty((0, 1))
 
