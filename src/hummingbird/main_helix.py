@@ -154,6 +154,7 @@ class Controller(object):
                 if np.any(d_to_obs < clearance_thresh):
                     k_e = pget("time_scale_k", 0.5)
                     sigma = 1.0 / (1.0 + k_e * e)
+                    sigma = max(sigma, pget("time_scale_min", 0.4))
 
             # 4) advance our internal trajectory time
             self.t_traj += sigma * dt_real

@@ -195,6 +195,7 @@ class Controller(object):
                 # if *any* obstacle within the clearance, apply time‐scale
                 if np.any(d2surf < time_scale_dist):
                     sigma = 1.0 / (1.0 + k_e_time_scale * tracking_error)
+                    sigma = max(sigma, pget("time_scale_min", 0.4))
 
             self.t_traj += sigma * dt_real
             self.t_last_scale_update = now_sec

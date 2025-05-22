@@ -132,7 +132,7 @@ class GazeboObstacleProcessor(object):
         rot_global = self._rot_mat_from_quat(model_pose_ros.orientation)
 
         spec = self.gz_shape_specs.get(model_name, {})
-        geom_type = spec.get('type', 'sphere') 
+        geom_type = spec.get('shape', 'sphere')
 
         if geom_type == 'box' and 'size' in spec:
             # Inflate the box size first

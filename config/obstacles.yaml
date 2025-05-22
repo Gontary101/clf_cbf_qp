@@ -39,8 +39,8 @@ gazebo_obstacle_shapes:
 default_obstacle_radius: 0.6
 sphere_decomp_r:        0.6
 zcbf_max_spheres:       1000
-obstacle_inflation:     0.35
-visualize_spheres:      true
+obstacle_inflation:     0.0 
+visualize_spheres:      false
 min_thrust_factor:      0.1
 zcbf_beta:              1.5
 zcbf_a1:                1.5
@@ -49,7 +49,7 @@ zcbf_gamma:             8.4
 zcbf_kappa:             0.8
 zcbf_order_a:           0
 cbf_active_range:       4.0
-zcbf_max_active_spheres: 20
+zcbf_max_active_spheres: 5
 cbf_hysteresis_margin:  0.0 
 zcbf_s_min:             -50000
 cbf_gamma:             30.0
@@ -95,3 +95,4 @@ safety_filter_type: zcbf
 
 time_scale_k: 6.0
 time_scale_dist: 1.0
+time_scale_min: 0.4
