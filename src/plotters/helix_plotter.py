@@ -338,7 +338,7 @@ class Plotter(object):
                 for i in range(W.shape[1]):W[:,i]=FILT(W[:,i],self.fw_w,self.fp_w)
             
             # Remove first 5 seconds of data
-            mask = Tw >= 5.0
+            mask = Tw >= 0.0
             Tw = Tw[mask]
             W = W[mask]
             
@@ -360,8 +360,8 @@ class Plotter(object):
                 ax.plot(Tw, W[:,i], label='M'+str(i+1), zorder=1)
             
             # Calculate dynamic y-axis limits with some padding
-            y_min = np.min(W) * 0.95  # 5% padding below
-            y_max = np.max(W) * 1.05  # 5% padding above
+            y_min = 400   # 5% padding below
+            y_max = 600   # 5% padding above
             ax.set_ylim(y_min, y_max)
             ax.set_xlabel('t (s)')
             ax.set_ylabel('omega (rad/s)')
@@ -396,6 +396,10 @@ with open(sys.argv[1], 'rb') as f:
     
 Tw = data['Tw']
 W = data['W']
+# Remove first 5 seconds of data
+mask = Tw >= 2.0
+Tw = Tw[mask]
+W = W[mask]
 takeoff_duration = data['takeoff_duration']
 hover_duration = data['hover_duration']
 
@@ -405,8 +409,8 @@ for i in range(W.shape[1]):
     ax.plot(Tw, W[:,i], label='M'+str(i+1))
 
 # Calculate dynamic y-axis limits with some padding
-y_min = np.min(W) * 0.95  # 5% padding below
-y_max = np.max(W) * 1.05  # 5% padding above
+y_min = 400  # 5% padding below
+y_max = 600  # 5% padding above
 ax.set_ylim(y_min, y_max)
 ax.set_xlabel('t (s)')
 ax.set_ylabel('omega (rad/s)')

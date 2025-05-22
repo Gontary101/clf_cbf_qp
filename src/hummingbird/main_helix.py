@@ -160,11 +160,18 @@ class Controller(object):
             self.t_last = now_sec
 
             # 5) query the helix at the new time
-            posd, vd, ad_nom, yd, rd = self.trajectory_module.get_reference(self.t_traj)
+            posd, vd_raw, ad_raw, yd, rd = \
+                self.trajectory_module.get_reference(self.t_traj)
+
+            vel_ramp_time = rospy.get_param("~vel_ramp_time", 2.0)
+            alpha = min(1.0, self.t_traj / vel_ramp_time)
+            vd = alpha * vd_raw
+            ad = alpha * ad_raw
+
             reference_signals = {
                 "tgt": posd,
                 "vd" : vd,
-                "ad" : ad_nom,
+                "ad" : ad,
                 "yd" : yd,
                 "rd" : rd,
                 "t_traj_secs": self.t_traj,

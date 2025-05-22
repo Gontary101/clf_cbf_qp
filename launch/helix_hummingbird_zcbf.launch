@@ -31,12 +31,12 @@
     <param name="helix_end_diameter"        value="10.0"/>
     <param name="helix_height"              value="15.0"/>
     <param name="helix_laps"                value="3.0"/>
-    <param name="trajectory_omega"          value="0.07"/>
+    <param name="trajectory_omega"          value="0.1"/>
     <param name="plot_save_dir"             value="$(find clf_cbf_qp)/plots"/>
     <param name="min_omega"                 value="0.0"/>
     <param name="max_omega"                 value="838.0"/>
     <param name="static_obstacles"
-           value="[ [0.000, 9.583, 4.250, 0.4], [-7.281, -5.290, 6.000, 0.4], [-2.601, -8.005, 7.750, 0.4], [2.421, 7.450, 9.500, 0.4], [5.865, -4.261, 11.250, 0.4], [6.667, 0.000, 13.000, 0.4] ]" />
+           value="[ [0.000, 9.583, 4.250, 0.4], [-7.281, -5.290, 6.000, 0.4], [-2.601, -8.005, 6.750, 0.4], [2.421, 7.450, 9.500, 0.4], [5.865, -4.261, 11.250, 0.4], [6.667, 0.000, 13.000, 0.4] ]" />
   </node>
 
   <node pkg="clf_cbf_qp" type="main_helix.py" 
