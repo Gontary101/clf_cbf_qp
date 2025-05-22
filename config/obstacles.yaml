@@ -1,0 +1,97 @@
+# obstacles.yaml
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Per-Gazebo-model shape specs.  Keys must match the <model name="..."> in
+#
+#   • shape:     "box" | "cylinder" | (omit for a single sphere)
+#   • size:      [dx, dy, dz]       ← only for boxes
+#   • radius:    r                   ← only for a single sphere fallback
+#   • radius:    r, height: h       ← only for cylinders
+#   • sphere_r:  r_sub (optional)   ← target radius of each small sphere
+#                                    (defaults to `sphere_decomp_r` below)
+# ─────────────────────────────────────────────────────────────────────────────
+gazebo_obstacle_shapes:
+  wall_1_centered:
+    shape:     box
+    size:      [1.0, 2.0, 10.0]
+    sphere_r:  0.6
+  wall_2_tangent_right:
+    shape:     box
+    size:      [1.0, 2.0, 10.0]
+    sphere_r:  0.6
+  wall_3_tangent_left:
+    shape:     box
+    size:      [1.0, 2.0, 10.0]
+    sphere_r:  0.6
+  wall_4_centered:
+    shape:     box
+    size:      [1.0, 2.0, 10.0]
+    sphere_r:  0.6
+
+# ─────────────────────────────────────────────────────────────────────────────
+# default_obstacle_radius : if code sees a model not listed above, it
+#                           will treat it as a single sphere of this radius.
+# sphere_decomp_r        : sphere‐radius to use by default when decomposing
+#                           boxes/cylinders into a grid or ring of spheres.
+# zcbf_max_spheres       : hard cap on total spheres (to bound QP size).
+# obstacle_inflation     : amount to inflate every obstacle by.
+# ─────────────────────────────────────────────────────────────────────────────
+default_obstacle_radius: 0.6
+sphere_decomp_r:        0.6
+zcbf_max_spheres:       1000
+obstacle_inflation:     0.0
+visualize_spheres:      false
+min_thrust_factor:      0.1
+zcbf_beta:              1.5
+zcbf_a1:                1.5
+zcbf_a2:                1.6
+zcbf_gamma:             8.4
+zcbf_kappa:             0.8
+zcbf_order_a:           0
+cbf_active_range:       4.0
+zcbf_max_active_spheres: 20
+cbf_hysteresis_margin:  0.0 
+zcbf_s_min:             -50000
+cbf_gamma:             30.0
+
+
+
+
+# Takeoff Gains
+k_takepos1: 1.5
+k_takepos2: 5.5
+k_takeatt1: 9.0
+k_takeatt2: 18.0
+
+# Trajectory Gains
+k_trajpos1: 2.7
+k_trajpos2: 7.0
+k_trajatt1: 45.0
+k_trajatt2: 40.0
+
+
+
+
+dynamic_obstacle_model_names: [
+  "sphere_obstacle_0",
+  "sphere_obstacle_1",
+  "sphere_obstacle_3",
+  "sphere_obstacle_4",
+  "sphere_obstacle_5",
+  "sphere_obstacle_6"
+]
+
+r_sphere_obstacle_0: 0.4
+r_sphere_obstacle_1: 0.4
+r_sphere_obstacle_3: 0.4
+r_sphere_obstacle_4: 0.4
+r_sphere_obstacle_5: 0.4
+r_sphere_obstacle_6: 0.4
+
+drone_radius: 0.4
+
+safety_filter_type: zcbf
+
+
+time_scale_k: 6.0
+time_scale_dist: 1.0

@@ -47,8 +47,8 @@ class Controller(object):
         initial_takeoff_y = pget("takeoff_y", self.trajectory_module.get_p0()[1])
         initial_takeoff_z = pget("takeoff_z", self.trajectory_module.get_p0()[2])
         
-        g_take = [pget(f"k_take{n}", dflt) for n, dflt in zip(("pos1", "pos2", "att1", "att2"), (0.22, 0.8, 2.05, 4.1))]
-        g_traj = [pget(f"k_traj{n}", dflt) for n, dflt in zip(("pos1", "pos2", "att1", "att2"), (0.75, 4.1, 16.00, 32.0))]
+        g_take = [pget("k_take{}".format(n), dflt) for n, dflt in zip(("pos1", "pos2", "att1", "att2"), (0.22, 0.8, 2.05, 4.1))]
+        g_traj = [pget("k_traj{}".format(n), dflt) for n, dflt in zip(("pos1", "pos2", "att1", "att2"), (0.75, 4.1, 16.00, 32.0))]
         
         self.flight_state_manager = FlightStateManager(initial_takeoff_x, initial_takeoff_y, initial_takeoff_z, g_take, g_traj, self.trajectory_module)
 
@@ -57,7 +57,7 @@ class Controller(object):
 
         # Obstacle Parser Setup
         self.static_obstacles = parse_obstacles(lambda param_name, default_val: pget(param_name, default_val))
-        rospy.loginfo_once(f"[{self.ns}] Loaded {self.static_obstacles.shape[0]} static obstacles.")
+        rospy.loginfo_once("[{}] Loaded {} static obstacles.".format(self.ns, self.static_obstacles.shape[0]))
 
         # Setup for multi-drone awareness: list of all drone namespaces.
         # This is used by GazeboObstacleProcessor to identify other drones as dynamic obstacles.
@@ -66,9 +66,9 @@ class Controller(object):
             self.all_drone_namespaces = ast.literal_eval(all_ns_str)
             if not isinstance(self.all_drone_namespaces, list):
                 raise ValueError("all_drone_namespaces is not a list")
-            rospy.loginfo(f"[{self.ns}] Aware of drones: {self.all_drone_namespaces}")
+            rospy.loginfo("[{}] Aware of drones: {}".format(self.ns, self.all_drone_namespaces))
         except (ValueError, SyntaxError) as e:
-            rospy.logerr(f"[{self.ns}] Invalid all_drone_namespaces parameter '{all_ns_str}': {e}")
+            rospy.logerr("[{}] Invalid all_drone_namespaces parameter '{}': {}".format(self.ns, all_ns_str, e))
             rospy.signal_shutdown("Configuration Error")
             return # Important to stop initialization if this fails
         
@@ -127,13 +127,13 @@ class Controller(object):
         self.timer = rospy.Timer(rospy.Duration(1.0 / self.control_rate),
                                  self.loop, reset=True)
 
-        rospy.loginfo(f"[{self.ns}] Refactored controller initialized with control rate {self.control_rate}Hz and log period {self.LOG_T}s.")
+        rospy.loginfo("[{}] Refactored controller initialized with control rate {}Hz and log period {}s.".format(self.ns, self.control_rate, self.LOG_T))
         rospy.on_shutdown(self.shutdown)
 
     def cb_odom(self, msg):
         self.last_odom_msg = msg
 
-    def cb_model_combined(self, msg: ModelStates):
+    def cb_model_combined(self, msg):
         """
         Callback for /gazebo/model_states. Updates ego drone odometry from the message
         and processes other models for obstacle avoidance using GazeboObstacleProcessor.
@@ -145,7 +145,7 @@ class Controller(object):
             try: # Try with a trailing slash if the namespace was registered like that in Gazebo
                 idx = msg.name.index(self.ns + "/")
             except ValueError:
-                rospy.logwarn_throttle(5.0, f"[{self.ns}] Own state not found in /gazebo/model_states")
+                rospy.logwarn_throttle(5.0, "[{}] Own state not found in /gazebo/model_states".format(self.ns))
                 return
         
         o = Odometry()
@@ -171,7 +171,7 @@ class Controller(object):
         """
         # a. Initial checks (odom, time)
         if self.last_odom_msg is None:
-            rospy.logwarn_throttle(1.0, f"[{self.ns}] No odometry message received yet.")
+            rospy.logwarn_throttle(1.0, "[{}] No odometry message received yet.".format(self.ns))
             return
         
         now = rospy.Time.now()
@@ -209,7 +209,7 @@ class Controller(object):
             # For this refactoring, we assume zcbf is a direct attribute or needs a dedicated update method.
             # If safety_manager.update_obstacles(self.combined_obstacles) is the API, use that.
             # Based on main_helix.py, direct assignment is common.
-            rospy.logwarn_throttle(5.0, f"[{self.ns}] ZCBF object not found directly on safety_manager. Obstacles not updated in ZCBF.")
+            rospy.logwarn_throttle(5.0, "[{}] ZCBF object not found directly on safety_manager. Obstacles not updated in ZCBF.".format(self.ns))
 
 
         # d. Flight State Management
@@ -221,7 +221,7 @@ class Controller(object):
         if current_phase_name == "TRAJ" and self.prev_phase_name != "TRAJ":
             self.t_traj = t_traj_fsm  # Reset/sync scaled time with FSM time on new entry
             self.t_last_scale_update = now_sec
-            rospy.loginfo(f"[{self.ns}] TRAJ phase entered. Initial t_traj: {self.t_traj:.2f}s")
+            rospy.loginfo("[{}] TRAJ phase entered. Initial t_traj: {:.2f}s".format(self.ns, self.t_traj))
 
         if current_phase_name == "TRAJ":
             dt_real = now_sec - self.t_last_scale_update
@@ -336,14 +336,14 @@ class Controller(object):
         # This might require self.actuation_handler to be initialized.
         # If self.actuation_handler is not available, this will error.
         # For now, keeping it simple.
-        rospy.loginfo("Shutting down refactored controller. Sending stop commands.")
-        rospy.loginfo(f"[{self.ns}] Shutting down refactored controller. Sending stop commands.")
+        rospy.loginfo("[{}] Shutting down refactored controller. Sending stop commands.".format(self.ns))
+        rospy.loginfo("[{}] Shutting down refactored controller. Sending stop commands.".format(self.ns))
         if hasattr(self, 'actuation_handler') and self.actuation_handler is not None:
             for _ in range(10): # Send multiple times to ensure it's received
                 self.actuation_handler.send_single_stop_command()
                 rospy.sleep(0.01)
         else:
-            rospy.loginfo(f"[{self.ns}] Actuation handler not initialized, cannot send stop commands.")
+            rospy.loginfo("[{}] Actuation handler not initialized, cannot send stop commands.".format(self.ns))
 
 
 if __name__ == "__main__":
@@ -352,10 +352,10 @@ if __name__ == "__main__":
     # rospy.loginfo("Starting clf_hummingbird_refactored_controller.") 
     try:
         c = Controller()
-        rospy.loginfo(f"[{c.ns if hasattr(c, 'ns') else 'hummingbird'}] Refactored controller started successfully.")
+        rospy.loginfo("[{}] Refactored controller started successfully.".format(c.ns if hasattr(c, 'ns') else 'hummingbird'))
         rospy.spin()
     except rospy.ROSInterruptException:
         rospy.loginfo("ROS interrupt received. Shutting down.")
     except Exception as e: # Catch other init errors
-        rospy.logfatal(f"Failed to initialize controller: {e}")
+        rospy.logfatal("Failed to initialize controller: {}".format(e))
         # No explicit rospy.signal_shutdown here as it might already be shutting down or error is fatal

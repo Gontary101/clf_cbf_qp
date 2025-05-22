@@ -157,37 +157,13 @@ class GazeboObstacleProcessor(object):
             for lc in local_centers:
                 # Transform local center to global frame
                 gc = pos_global + rot_global.dot(lc)
-                # The radius of each decomposing sphere is r_sub_decomp.
-                # The inflation was already applied to the box size *before* decomposition.
-                # So, the radius of the sphere is r_sub_decomp.
-                # Wait, the spec says: "The final radius of each sphere in the list should be r_sub (the decomposing radius...) + self.obs_inflation"
-                # This implies r_sub_decomp itself is the base for the final sphere radius, and obs_inflation is added again.
-                # This seems like double inflation if size_inflated was used.
-                # Let's stick to the instruction: "The final radius ... should be r_sub + self.obs_inflation"
-                # If size_orig is decomposed with r_sub_decomp, then each sphere is r_sub_decomp + obs_inflation.
-                # If size_inflated is decomposed with r_sub_decomp, then each sphere is just r_sub_decomp.
-                # Re-reading: "size from spec['size'] should first be inflated by 2 * self.obs_inflation *before* sphere decomposition."
-                # "The final radius of each sphere in the list should be r_sub (the decomposing radius...) + self.obs_inflation."
-                # This means the r_sub_decomp is the radius of the spheres that fill the *original* box size,
-                # and then *that* radius is inflated.
-                # Let's use original size for decomposition, and inflate the r_sub_decomp for final radius.
 
                 local_centers_orig_size = self._box_to_spheres(size_orig, r_sub_decomp)
                 for lc_orig in local_centers_orig_size:
                     gc = pos_global + rot_global.dot(lc_orig)
                     final_radius = r_sub_decomp + self.obs_inflation
                     spheres.append([gc[0], gc[1], gc[2], 0,0,0, 0,0,0, final_radius])
-        else: # Sphere or unknown, treat as a single sphere
-            # If it's a sphere, 'size' might be its radius, or use default_obs_r
-            # r_sub_decomp here is the 'sphere_r' from spec or self.decomp_r_default
-            # For a primitive sphere, its own specified radius (or default_obs_r if not in spec) should be used.
-            # 'r_sub_decomp' passed in is float(self.gz_shape_specs.get(name, {}).get('sphere_r', self.decomp_r_default))
-            # This 'sphere_r' is likely intended as the object's actual radius for sphere types.
-            
-            # If spec has 'radius', use it. Otherwise, use r_sub_decomp (which might be default_obs_r if not specified).
-            # This logic needs clarification. Let's assume r_sub_decomp is the base radius for sphere types from spec.
-            # If model_name is not in gz_shape_specs, r_sub_decomp becomes self.decomp_r_default. This should be self.default_obs_r.
-            # Correcting r_sub_decomp for single spheres:
+        else:
             
             radius_as_primitive = float(spec.get('radius', self.default_obs_r)) # Use 'radius' if specified, else default_obs_r
             final_radius = radius_as_primitive + self.obs_inflation
@@ -195,7 +171,7 @@ class GazeboObstacleProcessor(object):
             
         return spheres
 
-    def process_model_states_msg(self, msg: ModelStates):
+    def process_model_states_msg(self, msg):
         tmp_spheres = []
         now = rospy.Time.now() # For updating other_drone_states timestamp
 

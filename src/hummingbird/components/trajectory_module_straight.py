@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import numpy as np
-from hummingbird.trajectory.straight_line import StraightLineTrajectory
+from trajectory.straight_line import StraightLineTrajectory
 
 class TrajectoryModuleStraight(object):
     def __init__(self):
