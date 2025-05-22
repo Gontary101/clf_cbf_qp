@@ -24,7 +24,8 @@ class TelemetryPublisher(object):
             ("state/rates_body", Vector3),         
             ("control/U_nominal", Float64MultiArray)
         ]
-        self.pubs = {n: rospy.Publisher("~" + n, m, queue_size=1)
+        q_size = rospy.get_param("~telemetry_publisher_queue_size", 1)
+        self.pubs = {n: rospy.Publisher("~" + n, m, queue_size=q_size)
                      for n, m in misc_topics}
 
     def publish_telemetry(self, current_kinematics, flight_state_name,
