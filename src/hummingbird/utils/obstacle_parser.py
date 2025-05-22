@@ -136,20 +136,12 @@ class GazeboObstacleProcessor(object):
 
         if geom_type == 'box' and 'size' in spec:
             # Inflate the box size first
-            size_orig = np.array(spec['size'], dtype=float)
-            size_inflated = size_orig + 2 * self.obs_inflation 
-            local_centers = self._box_to_spheres(size_inflated, r_sub_decomp)
-            
-            for lc in local_centers:
+            size_inflated = np.array(spec['size'], dtype=float) + 2 * self.obs_inflation
+            for lc in self._box_to_spheres(size_inflated, r_sub_decomp):
                 gc = pos_global + rot_global.dot(lc)
-
-                local_centers_orig_size = self._box_to_spheres(size_orig, r_sub_decomp)
-                for lc_orig in local_centers_orig_size:
-                    gc = pos_global + rot_global.dot(lc_orig)
-                    final_radius = r_sub_decomp + self.obs_inflation
-                    spheres.append([gc[0], gc[1], gc[2], 0,0,0, 0,0,0, final_radius])
+                final_r = r_sub_decomp + self.obs_inflation
+                spheres.append([gc[0], gc[1], gc[2], 0,0,0, 0,0,0, final_r])
         else:
-            
             radius_as_primitive = float(spec.get('radius', self.default_obs_r)) 
             final_radius = radius_as_primitive + self.obs_inflation
             spheres.append([pos_global[0], pos_global[1], pos_global[2], 0,0,0, 0,0,0, final_radius])
@@ -221,7 +213,7 @@ class GazeboObstacleProcessor(object):
         # Filtering
         z_ground_tol = float(self.pget_func("z_ground_tol", 0.0)) # Ground clearance
         cbf_active_range = float(self.pget_func("cbf_active_range", 2.0)) # Max range to consider obstacles
-        max_active_spheres = int(self.pget_func("zcbf_max_active_spheres", 5)) # Max obstacles to feed to CBF
+        max_active_spheres = int(self.pget_func("zcbf_max_active_spheres", 10)) # Max obstacles to feed to CBF
         combined_obs = combined_obs[combined_obs[:,2] > z_ground_tol]
         if combined_obs.size == 0:
             return combined_obs

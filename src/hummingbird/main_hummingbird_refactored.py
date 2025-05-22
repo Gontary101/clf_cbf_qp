@@ -181,22 +181,20 @@ class Controller(object):
             p_act = current_kinematics["p_vec"]
             tracking_error = np.linalg.norm(p_act - pos_d_prev_scaling)
 
+            # --- only slow down when *actually* near an obstacle
             sigma = 1.0
-            k_e_time_scale = pget("time_scale_k", 0.5)
-            
-            sigma_error = 1.0 / (1.0 + k_e_time_scale * tracking_error)
-            sigma = min(sigma, sigma_error)
-
             time_scale_dist = pget("time_scale_dist", 0.8)
+            k_e_time_scale = pget("time_scale_k", 0.5)
+
             if self.combined_obstacles.size > 0:
                 centers = self.combined_obstacles[:, :3]
-                radii = self.combined_obstacles[:, 9]
-                safety_radius = self.model.r_drone
-                
-                dist_to_obs_surface = np.linalg.norm(centers - p_act[None,:], axis=1) - (radii + safety_radius)
-                
-                if np.any(dist_to_obs_surface < time_scale_dist):
-                    pass
+                radii   = self.combined_obstacles[:, 9]
+                safety_r = self.model.r_drone
+                d2surf = np.linalg.norm(centers - p_act[None,:], axis=1) - (radii + safety_r)
+
+                # if *any* obstacle within the clearance, apply time‐scale
+                if np.any(d2surf < time_scale_dist):
+                    sigma = 1.0 / (1.0 + k_e_time_scale * tracking_error)
 
             self.t_traj += sigma * dt_real
             self.t_last_scale_update = now_sec
