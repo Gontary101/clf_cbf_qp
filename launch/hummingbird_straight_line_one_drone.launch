@@ -17,7 +17,7 @@
   <!-- ==================== COMMON CONTROLLER ARGUMENTS ==================== -->
   <!-- General -->
   <arg name="use_model_states_common"   default="true" />
-  <arg name="control_rate_common"       default="1000.0" />
+  <arg name="control_rate_common"       default="200.0" />
   <!-- Trajectory & Hover -->
   <arg name="trajectory_duration_common" default="50.0" />
   <arg name="fixed_yaw_deg_common"      default="180.0" />

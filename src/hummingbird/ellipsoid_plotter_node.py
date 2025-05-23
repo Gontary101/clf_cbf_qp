@@ -102,17 +102,26 @@ class EllipsoidPlotter(object):
         # Enter main update loop in *this* (main) thread
         self.run()
 
-    def plot_superellipsoid(self, ax, center, a, b, c, n, color='r', alpha=0.4, resolution=50):
+    def plot_superellipsoid(self, ax, center, a, b, c, n, R,
+                            color='r', alpha=0.4):
         # Use precomputed meshgrids from the class instance
         u, v = self.ell_u, self.ell_v
         cu = np.sign(np.cos(u)) * (np.abs(np.cos(u)) ** (2.0 / n))
         su = np.sign(np.sin(u)) * (np.abs(np.sin(u)) ** (2.0 / n))
         cv = np.sign(np.cos(v)) * (np.abs(np.cos(v)) ** (2.0 / n))
         sv = np.sign(np.sin(v)) * (np.abs(np.sin(v)) ** (2.0 / n))
-        x = a * cu * cv + center[0]
-        y = b * cu * sv + center[1]
-        z = c * su + center[2]
-        ax.plot_surface(x, y, z, rstride=2, cstride=2, color=color, alpha=alpha, linewidth=0)
+        # build in the *local* frame
+        x_l = a * cu * cv
+        y_l = b * cu * sv
+        z_l = c * su
+        # rotate to world and translate
+        pts  = np.vstack((x_l.flatten(), y_l.flatten(), z_l.flatten()))
+        pts  = R.dot(pts)
+        x, y, z = (pts[0].reshape(x_l.shape) + center[0],
+                   pts[1].reshape(y_l.shape) + center[1],
+                   pts[2].reshape(z_l.shape) + center[2])
+        ax.plot_surface(x, y, z, rstride=2, cstride=2,
+                        color=color, alpha=alpha, linewidth=0)
 
     def cb_models(self, msg):
         # Called in ROS thread; just stash the latest message
@@ -137,9 +146,11 @@ class EllipsoidPlotter(object):
                     size = spec['size']
                     plot_box(self.ax, pose.position, pose.orientation, size)
                     ell = self.processor._ellipsoid_for_model(name, pose, twist)
-                    cx, cy, cz = ell[0], ell[1], ell[2]
-                    a, b, c, n = ell[9], ell[10], ell[11], ell[12]
-                    self.plot_superellipsoid(self.ax, (cx, cy, cz), a, b, c, n)
+                    cx, cy, cz  = ell[0:3]
+                    a, b, c, n  = ell[9:13]
+                    R_mat       = np.array(ell[13:22]).reshape(3, 3)
+                    self.plot_superellipsoid(self.ax, (cx, cy, cz),
+                                              a, b, c, n, R_mat)
 
                 # equalize scale and draw
                 set_axes_equal(self.ax)

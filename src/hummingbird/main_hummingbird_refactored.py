@@ -61,14 +61,23 @@ class Controller(object):
         )
         self.combined_obstacles = np.empty((0, 10), dtype=float)
 
-        cbf_params = dict(
-            beta=pget("zcbf_beta", 1.5),
-            a1=pget("zcbf_a1", 1.5),
-            a2=pget("zcbf_a2", 1.6),
-            gamma=pget("zcbf_gamma", 8.4),
-            kappa=pget("zcbf_kappa", 0.8),
-            order_a=pget("zcbf_order_a", 0)
-        )
+        if pget("safety_filter_type", "").lower() == "zcbf_ellipsoid":
+            cbf_params = dict(
+                a1   = pget("zcbf_a1_ellipse",   1.0),
+                a2   = pget("zcbf_a2_ellipse",   0.5),
+                gamma= pget("zcbf_gamma_ellipse",0.4),
+                kappa= pget("zcbf_kappa_ellipse",0.4),
+                order_a = pget("zcbf_order_a_ellipse", 0),
+            )
+        else:
+            cbf_params = dict(
+                beta = pget("zcbf_beta", 1.5),
+                a1   = pget("zcbf_a1",   1.5),
+                a2   = pget("zcbf_a2",   1.6),
+                gamma= pget("zcbf_gamma",8.4),
+                kappa= pget("zcbf_kappa",0.8),
+                order_a = pget("zcbf_order_a", 0),
+            )
         self.cbf_slack_pub = rospy.Publisher("~cbf/slack", Float64MultiArray, queue_size=1)
         self.safety_manager = SafetyManager(self.model, self.static_obstacles, cbf_params, self.cbf_slack_pub)
 
@@ -154,8 +163,29 @@ class Controller(object):
                 dists_sq = np.sum((self.combined_obstacles[:, :3] - current_pos_numpy)**2, axis=1)
                 indices = np.argsort(dists_sq)[:max_active_total]
                 self.combined_obstacles = self.combined_obstacles[indices]
+                
+                # Debug logging for obstacle filtering
+                if self.DBG and hasattr(self, 'log_event_counter') and self.log_event_counter == 0:
+                    rospy.loginfo_throttle(self.LOG_T, "[%s] OBSTACLE_DEBUG: Filtered %d obstacles to %d closest ones", 
+                                         self.ns, len(parts[0]) if parts else 0, max_active_total)
         else:
             self.combined_obstacles = np.empty((0, 10), dtype=float)
+        
+        # Debug logging for obstacle status
+        if self.DBG and hasattr(self, 'log_event_counter') and self.log_event_counter == 0:
+            static_count = self.static_obstacles.shape[0] if self.static_obstacles.size > 0 else 0
+            dynamic_count = env_and_other_drone_obs.shape[0] if env_and_other_drone_obs.size > 0 else 0
+            total_combined = self.combined_obstacles.shape[0] if self.combined_obstacles.size > 0 else 0
+            
+            rospy.loginfo_throttle(self.LOG_T, "[%s] OBSTACLE_DEBUG: Static=%d, Dynamic=%d, Combined=%d", 
+                                 self.ns, static_count, dynamic_count, total_combined)
+            
+            if total_combined > 0:
+                # Log distances to closest obstacles
+                dists = np.sqrt(np.sum((self.combined_obstacles[:, :3] - current_pos_numpy)**2, axis=1))
+                closest_dist = np.min(dists)
+                rospy.loginfo_throttle(self.LOG_T, "[%s] OBSTACLE_DEBUG: Closest obstacle at distance %.3f", 
+                                     self.ns, closest_dist)
         
         if hasattr(self.safety_manager, 'zcbf'):
              self.safety_manager.zcbf.obs = self.combined_obstacles
@@ -196,6 +226,12 @@ class Controller(object):
                 if np.any(d2surf < time_scale_dist):
                     sigma = 1.0 / (1.0 + k_e_time_scale * tracking_error)
                     sigma = max(sigma, pget("time_scale_min", 0.4))
+                    
+                    # Debug logging for time scaling
+                    if self.DBG and hasattr(self, 'log_event_counter') and self.log_event_counter == 0:
+                        min_d2surf = np.min(d2surf)
+                        rospy.loginfo_throttle(self.LOG_T, "[%s] TIME_SCALE_DEBUG: min_d2surf=%.3f < thresh=%.3f, sigma=%.3f, tracking_err=%.3f", 
+                                             self.ns, min_d2surf, time_scale_dist, sigma, tracking_error)
 
             self.t_traj += sigma * dt_real
             self.t_last_scale_update = now_sec
@@ -214,7 +250,34 @@ class Controller(object):
         clf_output_dict = self.control_allocator.compute_nominal_control(current_kinematics, reference_signals, current_gains)
         U_nominal_clf = clf_output_dict["U_nom"]
 
-        U_filtered, _ = self.safety_manager.filter_control(current_phase_name, U_nominal_clf, current_kinematics, current_gains, reference_signals)
+        # Debug logging for nominal control
+        if self.DBG and hasattr(self, 'log_event_counter') and self.log_event_counter == 0:
+            rospy.loginfo_throttle(self.LOG_T, "[%s] CONTROL_DEBUG: U_nominal=[%.3f,%.3f,%.3f,%.3f]", 
+                                 self.ns, U_nominal_clf[0], U_nominal_clf[1], U_nominal_clf[2], U_nominal_clf[3])
+
+        U_filtered, slack_values = self.safety_manager.filter_control(current_phase_name, U_nominal_clf, current_kinematics, current_gains, reference_signals)
+
+        # Debug logging for safety filter results
+        if self.DBG and hasattr(self, 'log_event_counter') and self.log_event_counter == 0:
+            U_diff = np.linalg.norm(U_filtered - U_nominal_clf)
+            is_filtered = U_diff > 1e-4
+            
+            rospy.loginfo_throttle(self.LOG_T, "[%s] SAFETY_DEBUG: U_filtered=[%.3f,%.3f,%.3f,%.3f], diff_norm=%.6f, filtered=%s", 
+                                 self.ns, U_filtered[0], U_filtered[1], U_filtered[2], U_filtered[3], U_diff, is_filtered)
+            
+            if slack_values is not None and len(slack_values) > 0:
+                slack_norm = np.linalg.norm(slack_values)
+                min_slack = np.min(slack_values)
+                max_slack = np.max(slack_values)
+                rospy.loginfo_throttle(self.LOG_T, "[%s] SLACK_DEBUG: slack_count=%d, min=%.6f, max=%.6f, norm=%.6f", 
+                                     self.ns, len(slack_values), min_slack, max_slack, slack_norm)
+                
+                # Log individual slack values if there are few constraints
+                if len(slack_values) <= 5:
+                    slack_str = ", ".join(["%.6f" % s for s in slack_values])
+                    rospy.loginfo_throttle(self.LOG_T, "[%s] SLACK_DEBUG: individual_slacks=[%s]", self.ns, slack_str)
+            else:
+                rospy.loginfo_throttle(self.LOG_T, "[%s] SLACK_DEBUG: No slack values (no active constraints or QP failed)", self.ns)
 
         _, w_sq_final = self.actuation_handler.generate_and_publish_motor_commands(U_filtered, now)
 

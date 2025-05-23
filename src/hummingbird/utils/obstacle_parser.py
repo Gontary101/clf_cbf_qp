@@ -131,8 +131,6 @@ class GazeboObstacleProcessor(object):
         self.state_timeout = rospy.Duration(float(self.pget_func("state_timeout_secs", 1.0)))
 
     def _rot_mat_from_quat(self, q_ros):
-        _, _, yaw = euler_from_quaternion([q_ros.x, q_ros.y, q_ros.z, q_ros.w])
-        return rotation_matrix(0,0,yaw)
         q_tf = [q_ros.x, q_ros.y, q_ros.z, q_ros.w]
         roll, pitch, yaw = euler_from_quaternion(q_tf)
         return rotation_matrix(roll, pitch, yaw)
@@ -192,14 +190,15 @@ class GazeboObstacleProcessor(object):
     def _ellipsoid_for_model(self, model_name, pose_ros, twist_ros):
         spec = self.gz_shape_specs.get(model_name, {})
         shape = spec.get("shape", "sphere")
-        # for visualization, ignore the global inflation
-        inf   = 0.0
+        # enlarge every semiaxis by (obs_inflation + r_drone) so that
+        # the CBF works with the *true* keep-out set
+        safety_buffer = self.obs_inflation + self.drone_radius
 
         if shape=="box" and "size" in spec:
             dx, dy, dz = spec["size"]
-            a = dx/2
-            b = dy/2
-            c = dz/2
+            a = dx/2 + safety_buffer
+            b = dy/2 + safety_buffer
+            c = dz/2 + safety_buffer
             # exponent n based on aspect ratio, clamped to a maximum
             rat   = max(dx, dy, dz) / max(min(dx, dy, dz), 1e-6)
             n_raw = max(2, int(round(rat)))
@@ -207,7 +206,7 @@ class GazeboObstacleProcessor(object):
             max_n = int(self.pget_func("max_ellipsoid_exponent", 6))
             n     = min(n_raw, max_n)
         else:
-            r = float(spec.get("radius", self.default_obs_r)) + inf
+            r = float(spec.get("radius", self.default_obs_r)) + safety_buffer
             a=b=c=r;  n=2
 
         x,y,z = (pose_ros.position.x,

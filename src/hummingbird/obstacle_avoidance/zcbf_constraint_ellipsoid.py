@@ -13,14 +13,14 @@ class ZCBFFilter(object):
     def __init__(self, model, obstacles, params, cbf_pub=None):
         self.model = model
         self.obs   = obstacles
-        self.cbf_enter      = rospy.get_param("~cbf_active_range_ellipse",    2.0)
-        self._hyst_margin   = rospy.get_param("~cbf_hysteresis_margin_ellipse", 0.5)
-        self.cbf_exit       = self.cbf_enter - self._hyst_margin
+        self.cbf_enter = rospy.get_param("~cbf_active_range_ellipse", 4.0)
+        self.cbf_exit  = self.cbf_enter - rospy.get_param(
+                        "~cbf_hysteresis_margin_ellipse", 0.0)
         self._obs_active    = [False] * len(self.obs)
-        self.a1    = params.get("zcbf_a1_ellipse",     1.5)
-        self.a2    = params.get("zcbf_a2_ellipse",     1.6)
-        self.gamma = params.get("zcbf_gamma_ellipse",  8.4)
-        self.kappa = params.get("zcbf_kappa_ellipse",  0.8)
+        self.a1    = params.get("a1",    rospy.get_param("~zcbf_a1_ellipse",    1.5))
+        self.a2    = params.get("a2",    rospy.get_param("~zcbf_a2_ellipse",    1.6))
+        self.gamma = params.get("gamma", rospy.get_param("~zcbf_gamma_ellipse",  8.4))
+        self.kappa = params.get("kappa", rospy.get_param("~zcbf_kappa_ellipse",  0.8))
         self.a     = params.get("zcbf_order_a_ellipse", 0)
         
         self.pub   = cbf_pub
@@ -29,14 +29,27 @@ class ZCBFFilter(object):
         self._U_out_prev   = None
         
         self.EPSILON = 1e-9 
+        
+        # Add debug logging initialization
+        self._last_debug_log_time = rospy.get_time()
+        self._debug_log_interval = 0.5  # Log every 0.5 seconds
+        
+        rospy.loginfo("[ZCBF_ELLIPSOID] Initialized with params: a1=%.3f, a2=%.3f, gamma=%.3f, kappa=%.3f, cbf_enter=%.3f, cbf_exit=%.3f", 
+                     self.a1, self.a2, self.gamma, self.kappa, self.cbf_enter, self.cbf_exit)
         rospy.sleep(0.1)
 
     def constraints(self, state):
+        current_time = rospy.get_time()
+        should_log_debug = (current_time - self._last_debug_log_time) >= self._debug_log_interval
+        
         if len(self.obs) != len(self._obs_active):
             rospy.logdebug_throttle(5.0, "ZCBF: Obstacle count changed from %d to %d. Reinitializing _obs_active.", len(self._obs_active), len(self.obs))
             self._obs_active = [False] * len(self.obs)
 
         if self.obs.size == 0:
+            if should_log_debug:
+                rospy.loginfo_throttle(self._debug_log_interval, "[ZCBF_DEBUG] No obstacles present, returning empty constraints")
+                self._last_debug_log_time = current_time
             return np.empty((0, 4)), np.empty((0, 1))
 
         m, g   = self.model.m, self.model.g
@@ -74,6 +87,16 @@ class ZCBFFilter(object):
         cbf_exit_sq = self.cbf_exit**2
         
         a1_a2_val = self.a1 * self.a2
+        
+        # Debug logging for state
+        if should_log_debug:
+            rospy.loginfo_throttle(self._debug_log_interval, "[ZCBF_DEBUG] State: pos=[%.3f,%.3f,%.3f], vel=[%.3f,%.3f,%.3f], |Om|=%.3f", 
+                                 p_vec[0], p_vec[1], p_vec[2], v_vec[0], v_vec[1], v_vec[2], np.linalg.norm(Om_body))
+            rospy.loginfo_throttle(self._debug_log_interval, "[ZCBF_DEBUG] Total obstacles: %d, Active obstacles: %d", 
+                                 len(self.obs), sum(self._obs_active))
+
+        active_constraints_count = 0
+        obs_status_info = []
 
         for i, o in enumerate(self.obs):
             ox, oy, oz = o[0], o[1], o[2]
@@ -96,18 +119,39 @@ class ZCBFFilter(object):
             A_o_vec = np.array([ax, ay, az])
 
             r_vec = p_vec - x_o_vec
+            # distance in the *scaled* (ellipsoid) space
+            r_local_tmp   = R_obs_T.dot(r_vec)
+            psi             = (
+                  (abs(r_local_tmp[0]/obs_a))**obs_n
+                + (abs(r_local_tmp[1]/obs_b))**obs_n
+                + (abs(r_local_tmp[2]/obs_c))**obs_n
+            ) ** (1.0/obs_n)
+
+            # for logging only – converts to "surface distance"
+            dist_val      = (psi - 1.0) * min(obs_a, obs_b, obs_c)
+            min_axis = min(obs_a, obs_b, obs_c)
+
+            psi_enter = 1.0 + self.cbf_enter / min_axis
+            psi_exit  = 1.0 + self.cbf_exit  / min_axis
             
-            dist_sq_val = np.sum(r_vec**2)
+            # Log obstacle activation/deactivation
+            was_active = self._obs_active[i]
+            
             if not self._obs_active[i]:
-                if dist_sq_val > cbf_enter_sq:
+                if psi > psi_enter:
+                    obs_status_info.append("Obs%d: INACTIVE (dist=%.3f > enter=%.3f)" % (i, dist_val, self.cbf_enter))
                     continue
                 else:
                     self._obs_active[i] = True
+                    rospy.loginfo("[ZCBF_DEBUG] Obstacle %d ACTIVATED at distance %.3f (enter_thresh=%.3f)", i, dist_val, self.cbf_enter)
             else:
-                if dist_sq_val > cbf_exit_sq:
+                if psi > psi_exit:
                     self._obs_active[i] = False
+                    rospy.loginfo("[ZCBF_DEBUG] Obstacle %d DEACTIVATED at distance %.3f (exit_thresh=%.3f)", i, dist_val, self.cbf_exit)
+                    obs_status_info.append("Obs%d: DEACTIVATED (dist=%.3f > exit=%.3f)" % (i, dist_val, self.cbf_exit))
                     continue
             
+            active_constraints_count += 1
             r_dot_vec = v_vec - V_o_vec
 
             # Transform relative position to ellipsoid frame
@@ -123,27 +167,31 @@ class ZCBFFilter(object):
             sig_p_val = -a1_a2_val / sig_p_denominator_val
             sig_pp_val = -2.0 * sig_p_val * self.a2 * a2_s_val / sig_p_denominator_val
 
-            # Compute ellipsoid constraint in local frame
-            val_ax_abs = abs(r_local[0]/obs_a)
-            val_by_abs = abs(r_local[1]/obs_b)
-            val_cz_abs = abs(r_local[2]/obs_c)
+            # ------- super-ellipsoid L-p norm (p = n) -----------------------
+            val_ax_abs = abs(r_local[0] / obs_a)
+            val_by_abs = abs(r_local[1] / obs_b)
+            val_cz_abs = abs(r_local[2] / obs_c)
 
-            pow_val_ax_abs_obs_n = np.power(val_ax_abs, obs_n)
-            pow_val_by_abs_obs_n = np.power(val_by_abs, obs_n)
-            pow_val_cz_abs_obs_n = np.power(val_cz_abs, obs_n)
-            Phi_calc_val = pow_val_ax_abs_obs_n + pow_val_by_abs_obs_n + pow_val_cz_abs_obs_n
+            pow_x = val_ax_abs ** obs_n
+            pow_y = val_by_abs ** obs_n
+            pow_z = val_cz_abs ** obs_n
+
+            sum_p = pow_x + pow_y + pow_z
+            Phi_calc_val = sum_p ** (1.0 / obs_n)            #  ⟨—   root !
 
             g_hat_calc_val = Phi_calc_val - 1.0 - sigma_calc_val
 
-            common_obs_n_minus_1 = obs_n - 1
-            pow_val_ax_abs_obs_n_m1 = np.power(val_ax_abs, common_obs_n_minus_1)
-            pow_val_by_abs_obs_n_m1 = np.power(val_by_abs, common_obs_n_minus_1)
-            pow_val_cz_abs_obs_n_m1 = np.power(val_cz_abs, common_obs_n_minus_1)
-
             # Compute gradient in local frame
-            grad_Phi_x_local = (obs_n/obs_a) * np.sign(r_local[0]) * pow_val_ax_abs_obs_n_m1
-            grad_Phi_y_local = (obs_n/obs_b) * np.sign(r_local[1]) * pow_val_by_abs_obs_n_m1
-            grad_Phi_z_local = (obs_n/obs_c) * np.sign(r_local[2]) * pow_val_cz_abs_obs_n_m1
+            inner_grad_x = (obs_n/obs_a) * np.sign(r_local[0]) * val_ax_abs ** (obs_n - 1)
+            inner_grad_y = (obs_n/obs_b) * np.sign(r_local[1]) * val_by_abs ** (obs_n - 1)
+            inner_grad_z = (obs_n/obs_c) * np.sign(r_local[2]) * val_cz_abs ** (obs_n - 1)
+
+            # dΦ = (1/n) · sum_p^{1/n - 1} · d(sum_p)
+            root_factor = (1.0/obs_n) * (sum_p ** (1.0/obs_n - 1.0))
+
+            grad_Phi_x_local = root_factor * inner_grad_x
+            grad_Phi_y_local = root_factor * inner_grad_y
+            grad_Phi_z_local = root_factor * inner_grad_z
             grad_Phi_local = np.array([grad_Phi_x_local, grad_Phi_y_local, grad_Phi_z_local])
             
             # Transform gradient back to world frame
@@ -176,9 +224,10 @@ class ZCBFFilter(object):
             base_H_yy_val = val_by_abs + self.EPSILON if obs_n < 2 else val_by_abs
             base_H_zz_val = val_cz_abs + self.EPSILON if obs_n < 2 else val_cz_abs
             
-            H_xx_local = (n_factor_val / (obs_a**2)) * np.power(base_H_xx_val, common_obs_n_minus_2)
-            H_yy_local = (n_factor_val / (obs_b**2)) * np.power(base_H_yy_val, common_obs_n_minus_2)
-            H_zz_local = (n_factor_val / (obs_c**2)) * np.power(base_H_zz_val, common_obs_n_minus_2)
+            # Same inner Hessian but scaled by root_factor again
+            H_xx_local = root_factor * (n_factor_val / (obs_a**2)) * base_H_xx_val ** common_obs_n_minus_2
+            H_yy_local = root_factor * (n_factor_val / (obs_b**2)) * base_H_yy_val ** common_obs_n_minus_2
+            H_zz_local = root_factor * (n_factor_val / (obs_c**2)) * base_H_zz_val ** common_obs_n_minus_2
             
             # Transform velocity to local frame for Hessian computation
             r_dot_local_sq = r_dot_local**2
@@ -223,6 +272,13 @@ class ZCBFFilter(object):
 
             G_list.append(-current_G_row_val)
             h_list.append(current_h_final_val)
+            
+            # Detailed logging for active constraints
+            if should_log_debug:
+                obs_status_info.append("Obs%d: ACTIVE, dist=%.3f, g_hat=%.4f, g_hat_d=%.4f, h_internal=%.4f, constraint_h=%.4f" % 
+                                     (i, dist_val, g_hat_calc_val, g_hat_d_calc_val, h_internal_val, current_h_final_val))
+                rospy.loginfo_throttle(self._debug_log_interval, "[ZCBF_DEBUG] Obs%d detailed: Phi=%.4f, sigma=%.4f, s=%.4f, Gamma1=%.4f, |Gamma2|=%.4f", 
+                                     i, Phi_calc_val, sigma_calc_val, s_val, Gamma1_calc_val, np.linalg.norm(Gamma2_vec_calc_val))
 
         U1_max_val = 4.0 * kf * w_max ** 2
 
@@ -236,5 +292,28 @@ class ZCBFFilter(object):
 
         G_all_val = np.vstack([G_cbf_val, G_box_val])
         h_all_val = np.vstack([h_cbf_val, h_box_val])
+        
+        # Log constraint summary
+        if should_log_debug:
+            self._last_debug_log_time = current_time
+            rospy.loginfo_throttle(self._debug_log_interval, "[ZCBF_DEBUG] Constraints summary: %d CBF + 2 box = %d total", 
+                                 len(G_list), G_all_val.shape[0])
+            rospy.loginfo_throttle(self._debug_log_interval, "[ZCBF_DEBUG] Thrust limits: min=%.3f, max=%.3f", U1_min_val, U1_max_val)
+            
+            for info in obs_status_info:
+                rospy.loginfo_throttle(self._debug_log_interval, "[ZCBF_DEBUG] %s", info)
+            
+            if len(h_list) > 0:
+                h_cbf_array = np.array(h_list)
+                min_h = np.min(h_cbf_array)
+                max_h = np.max(h_cbf_array)
+                rospy.loginfo_throttle(self._debug_log_interval, "[ZCBF_DEBUG] CBF constraint values: min_h=%.4f, max_h=%.4f, active_count=%d", 
+                                     min_h, max_h, active_constraints_count)
+                
+                # Log most restrictive constraint
+                if min_h < 0.1:  # Close to being violated
+                    min_idx = np.argmin(h_cbf_array)
+                    rospy.logwarn_throttle(self._debug_log_interval, "[ZCBF_DEBUG] Most restrictive constraint %d with h=%.4f (close to violation!)", 
+                                         min_idx, min_h)
         
         return G_all_val, h_all_val

@@ -39,7 +39,7 @@ gazebo_obstacle_shapes:
 default_obstacle_radius: 0.6
 sphere_decomp_r:        0.6
 zcbf_max_spheres:       1000
-obstacle_inflation:     0.0 
+obstacle_inflation:     0.4 
 visualize_spheres:      false
 min_thrust_factor:      0.1
 zcbf_beta:              1.5
@@ -57,14 +57,14 @@ cbf_gamma:             30.0
 # ─────────────────────────────────────────────────────────────────────────────
 # Ellipsoid
 zcbf_a1_ellipse:       1.0
-zcbf_a2_ellipse:       0.5
-zcbf_gamma_ellipse:    0.4
+zcbf_a2_ellipse:       0.6
+zcbf_gamma_ellipse:    2.4
 zcbf_kappa_ellipse:    0.4
 zcbf_order_a_ellipse:  0
 cbf_active_range_ellipse:       4.0
 cbf_hysteresis_margin_ellipse:  0.0 
 zcbf_s_min_ellipse:             -50000
-
+max_ellipsoid_exponent: 4
 
 
 
