@@ -1,0 +1,11 @@
+<launch>
+  <node pkg="clf_cbf_qp" type="ellipsoid_plotter_node.py" name="ellipsoid_plotter" output="screen">
+    <!-- Pass through any necessary namespacing or topic overrides -->
+        <rosparam command="load"
+              file="$(find clf_cbf_qp)/config/obstacles.yaml"/>
+    <param name="model_states_topic" value="/gazebo/model_states" />
+    <param name="all_drone_namespaces" value="['hummingbird1']" />
+
+    <!-- namespace and other params can be added here -->
+  </node>
+</launch>

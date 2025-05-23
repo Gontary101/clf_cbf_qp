@@ -80,6 +80,16 @@ class ZCBFFilter(object):
             vx, vy, vz = o[3], o[4], o[5]
             ax, ay, az = o[6], o[7], o[8]
             obs_a, obs_b, obs_c, obs_n = o[9], o[10], o[11], o[12]
+            
+            # Extract rotation matrix (elements 13-21, reshaped to 3x3)
+            if len(o) >= 22:
+                R_obs_flat = o[13:22]
+                R_obs = np.array(R_obs_flat).reshape(3, 3)
+                R_obs_T = R_obs.T
+            else:
+                # Fallback to identity matrix for backward compatibility
+                R_obs = np.eye(3)
+                R_obs_T = np.eye(3)
 
             x_o_vec = np.array([ox, oy, oz])
             V_o_vec = np.array([vx, vy, vz])
@@ -100,6 +110,10 @@ class ZCBFFilter(object):
             
             r_dot_vec = v_vec - V_o_vec
 
+            # Transform relative position to ellipsoid frame
+            r_local = R_obs_T.dot(r_vec)
+            r_dot_local = R_obs_T.dot(r_dot_vec)
+
             s_val = np.dot(r_vec, q_vec)
             a2_s_val = self.a2 * s_val
             
@@ -109,9 +123,10 @@ class ZCBFFilter(object):
             sig_p_val = -a1_a2_val / sig_p_denominator_val
             sig_pp_val = -2.0 * sig_p_val * self.a2 * a2_s_val / sig_p_denominator_val
 
-            val_ax_abs = abs(r_vec[0]/obs_a)
-            val_by_abs = abs(r_vec[1]/obs_b)
-            val_cz_abs = abs(r_vec[2]/obs_c)
+            # Compute ellipsoid constraint in local frame
+            val_ax_abs = abs(r_local[0]/obs_a)
+            val_by_abs = abs(r_local[1]/obs_b)
+            val_cz_abs = abs(r_local[2]/obs_c)
 
             pow_val_ax_abs_obs_n = np.power(val_ax_abs, obs_n)
             pow_val_by_abs_obs_n = np.power(val_by_abs, obs_n)
@@ -125,10 +140,14 @@ class ZCBFFilter(object):
             pow_val_by_abs_obs_n_m1 = np.power(val_by_abs, common_obs_n_minus_1)
             pow_val_cz_abs_obs_n_m1 = np.power(val_cz_abs, common_obs_n_minus_1)
 
-            grad_Phi_x_val = (obs_n/obs_a) * np.sign(r_vec[0]) * pow_val_ax_abs_obs_n_m1
-            grad_Phi_y_val = (obs_n/obs_b) * np.sign(r_vec[1]) * pow_val_by_abs_obs_n_m1
-            grad_Phi_z_val = (obs_n/obs_c) * np.sign(r_vec[2]) * pow_val_cz_abs_obs_n_m1
-            grad_Phi_vec_val = np.array([grad_Phi_x_val, grad_Phi_y_val, grad_Phi_z_val])
+            # Compute gradient in local frame
+            grad_Phi_x_local = (obs_n/obs_a) * np.sign(r_local[0]) * pow_val_ax_abs_obs_n_m1
+            grad_Phi_y_local = (obs_n/obs_b) * np.sign(r_local[1]) * pow_val_by_abs_obs_n_m1
+            grad_Phi_z_local = (obs_n/obs_c) * np.sign(r_local[2]) * pow_val_cz_abs_obs_n_m1
+            grad_Phi_local = np.array([grad_Phi_x_local, grad_Phi_y_local, grad_Phi_z_local])
+            
+            # Transform gradient back to world frame
+            grad_Phi_vec_val = R_obs.dot(grad_Phi_local)
 
             dot_r_dot_q_val = np.dot(r_dot_vec, q_vec)
             dot_r_R_Omxe3_val = np.dot(r_vec, R_Omxe3_val)
@@ -152,18 +171,18 @@ class ZCBFFilter(object):
             n_factor_val = obs_n * (obs_n - 1)
             common_obs_n_minus_2 = obs_n - 2
 
+            # Compute Hessian terms in local frame
             base_H_xx_val = val_ax_abs + self.EPSILON if obs_n < 2 else val_ax_abs
             base_H_yy_val = val_by_abs + self.EPSILON if obs_n < 2 else val_by_abs
             base_H_zz_val = val_cz_abs + self.EPSILON if obs_n < 2 else val_cz_abs
             
-            H_xx_calc_val = (n_factor_val / (obs_a**2)) * np.power(base_H_xx_val, common_obs_n_minus_2)
-            H_yy_calc_val = (n_factor_val / (obs_b**2)) * np.power(base_H_yy_val, common_obs_n_minus_2)
-            H_zz_calc_val = (n_factor_val / (obs_c**2)) * np.power(base_H_zz_val, common_obs_n_minus_2)
+            H_xx_local = (n_factor_val / (obs_a**2)) * np.power(base_H_xx_val, common_obs_n_minus_2)
+            H_yy_local = (n_factor_val / (obs_b**2)) * np.power(base_H_yy_val, common_obs_n_minus_2)
+            H_zz_local = (n_factor_val / (obs_c**2)) * np.power(base_H_zz_val, common_obs_n_minus_2)
             
-            r_dot0_sq_val = r_dot_vec[0]**2
-            r_dot1_sq_val = r_dot_vec[1]**2
-            r_dot2_sq_val = r_dot_vec[2]**2
-            term2_new_calc_val = H_xx_calc_val * r_dot0_sq_val + H_yy_calc_val * r_dot1_sq_val + H_zz_calc_val * r_dot2_sq_val
+            # Transform velocity to local frame for Hessian computation
+            r_dot_local_sq = r_dot_local**2
+            term2_new_calc_val = H_xx_local * r_dot_local_sq[0] + H_yy_local * r_dot_local_sq[1] + H_zz_local * r_dot_local_sq[2]
             
             term3_new_calc_val = -g * grad_Phi_vec_val[2]
 
