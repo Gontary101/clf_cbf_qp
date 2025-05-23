@@ -171,8 +171,7 @@ catkin_install_python(PROGRAMS
   src/modular/utils/csv_recorder.py
   src/modular/plotters/multi_straight_line_plotter.py
   src/modular/utils/dynamics_utils.py
-  src/hummingbird/main_hummingbird.py
-  src/hummingbird/main_hummingbird_all_obs_tan.py
+
   src/plotters/helix_plotter.py
   src/hummingbird/main_helix.py
   src/hummingbird/main_hummingbird_refactored.py

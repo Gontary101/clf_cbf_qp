@@ -82,6 +82,10 @@ class GazeboObstacleProcessor(object):
         self.drone_radius = float(self.pget_func("drone_radius", 0.3)) 
 
         self.gz_obstacle_spheres = np.empty((0, 10), dtype=float)
+        # will hold our ellipsoid approximations: [x,y,z,vx,vy,vz,ax,ay,az,a,b,c,n]
+        self.gz_ellip_obs       = np.empty((0,13), dtype=float)
+        # figure out which mode we're in
+        self._shape_approx      = pget_func("safety_filter_type", "zcbf").lower()
         
         self.other_drone_states = {
             other_ns: {'pose': None, 'twist': None, 'time': rospy.Time(0)}
@@ -148,8 +152,39 @@ class GazeboObstacleProcessor(object):
             
         return spheres
 
+    def _ellipsoid_for_model(self, model_name, pose_ros, twist_ros):
+        spec = self.gz_shape_specs.get(model_name, {})
+        shape = spec.get("shape","sphere")
+        inf   = self.obs_inflation
+
+        if shape=="box" and "size" in spec:
+            dx, dy, dz = spec["size"]
+            # half-sizes + inflation
+            a = dx/2 + inf
+            b = dy/2 + inf
+            c = dz/2 + inf
+            # exponent n based on aspect ratio
+            rat = max(dx,dy,dz)/max(min(dx,dy,dz),1e-6)
+            n   = max(2, int(round(rat)))
+        else:
+            r = float(spec.get("radius", self.default_obs_r)) + inf
+            a=b=c=r;  n=2
+
+        x,y,z = (pose_ros.position.x,
+                 pose_ros.position.y,
+                 pose_ros.position.z)
+        vx,vy,vz = (twist_ros.linear.x,
+                    twist_ros.linear.y,
+                    twist_ros.linear.z)
+
+        return [ x,y,z,
+                 vx,vy,vz,
+                 0.0,0.0,0.0,
+                 a,b,c,n ]
+
     def process_model_states_msg(self, msg):
         tmp_spheres = []
+        tmp_ellip   = []
         now = rospy.Time.now() # For updating other_drone_states timestamp
 
         for i, name in enumerate(msg.name):
@@ -169,43 +204,60 @@ class GazeboObstacleProcessor(object):
                 else: # sphere or other
                     r_for_decomp = float(model_spec.get('radius', self.default_obs_r))
 
-
+                # old sphere-decomp
                 model_spheres = self._spheres_for_model(name, msg.pose[i], r_for_decomp)
                 tmp_spheres.extend(model_spheres)
+                # new single-ellipsoid approximation
+                tmp_ellip.append(
+                    self._ellipsoid_for_model(name, msg.pose[i], msg.twist[i])
+                )
 
-        if len(tmp_spheres) > self.max_spheres:
-            rospy.logwarn_throttle(5.0, "Too many Gazebo obstacle spheres (%d), truncating to %d",
-                                   len(tmp_spheres), self.max_spheres)
-            self.gz_obstacle_spheres = np.array(tmp_spheres[:self.max_spheres], dtype=float)
-        elif tmp_spheres:
-            self.gz_obstacle_spheres = np.array(tmp_spheres, dtype=float)
-        else:
-            self.gz_obstacle_spheres = np.empty((0,10), dtype=float)
+        # store both representations
+        self.gz_obstacle_spheres = np.array(tmp_spheres, dtype=float) \
+            if tmp_spheres else np.empty((0,10),dtype=float)
+        self.gz_ellip_obs       = np.array(tmp_ellip,   dtype=float) \
+            if tmp_ellip   else np.empty((0,13),dtype=float)
 
     def get_combined_obstacles(self, current_drone_p_vec_numpy):
         now = rospy.Time.now()
         dynamic_obs_list = []
+        dynamic_elip_list = []
 
         # Dynamic drone obstacles
         for other_ns, state_data in self.other_drone_states.items():
             if state_data['pose'] and state_data['twist'] and (now - state_data['time'] < self.state_timeout):
                 op = state_data['pose'].position
                 ov = state_data['twist'].linear
-                # Inflated radius for other drones
-                final_drone_radius = self.drone_radius + self.obs_inflation
+                # sphere for other-drone
+                r = self.drone_radius + self.obs_inflation
                 dynamic_obs_list.append([
                     op.x, op.y, op.z,
                     ov.x, ov.y, ov.z,
                     0,0,0,
-                    final_drone_radius
+                    r
+                ])
+                # ellipsoid for other-drone (a=b=c=r, n=2)
+                dynamic_elip_list.append([
+                    op.x, op.y, op.z,
+                    ov.x, ov.y, ov.z,
+                    0,0,0,
+                    r, r, r, 2
                 ])
         
-        dynamic_obs_array = np.array(dynamic_obs_list, dtype=float) if dynamic_obs_list else np.empty((0,10), dtype=float)
-        parts = [a for a in (dynamic_obs_array, self.gz_obstacle_spheres) if a.size > 0]
+        dynamic_obs_array   = np.array(dynamic_obs_list, dtype=float) \
+            if dynamic_obs_list else np.empty((0,10), dtype=float)
+        dynamic_elip_array  = np.array(dynamic_elip_list, dtype=float) \
+            if dynamic_elip_list else np.empty((0,13), dtype=float)
+
+        if self._shape_approx == "zcbf_ellipsoid":
+            parts = [p for p in (dynamic_elip_array, self.gz_ellip_obs) if p.size>0]
+        else:
+            parts = [p for p in (dynamic_obs_array, self.gz_obstacle_spheres) if p.size>0]
+
         if parts:
             combined_obs = np.vstack(parts)
         else:
-            combined_obs = np.empty((0,10), dtype=float)
+            combined_obs = np.empty((0,10 if self._shape_approx!="zcbf_ellipsoid" else 13), dtype=float)
 
         if combined_obs.size == 0:
             return combined_obs

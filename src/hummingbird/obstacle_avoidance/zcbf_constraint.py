@@ -78,7 +78,7 @@ class ZCBFFilter(object):
             sigma   = -self.a1 * math.atan(self.a2 * s)
 
             sig_p   = -self.a1 * self.a2 / (1.0 + (self.a2 * s) ** 2)
-            sig_pp  =  2.0 * self.a1 * (self.a2 ** 2) * s / (1.0 + (self.a2 * s) ** 2) ** 2
+            sig_pp  =  2.0 * self.a1 * (self.a2 ** 3) * s / (1.0 + (self.a2 * s) ** 2) ** 2
 
             g_hat   = np.dot(r, r) - self.beta * (r_safe ** 2) - sigma
             R_Omxe3 = R.dot(np.cross(Om, e3_body))

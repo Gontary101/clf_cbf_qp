@@ -90,7 +90,7 @@ r_sphere_obstacle_6: 0.4
 
 drone_radius: 0.4
 
-safety_filter_type: zcbf
+safety_filter_type: zcbf_ellipsoid
 
 
 time_scale_k: 6.0
