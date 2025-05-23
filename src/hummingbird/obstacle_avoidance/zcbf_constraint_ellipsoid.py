@@ -21,7 +21,7 @@ class ZCBFFilter(object):
         self.a2    = params.get("a2",    rospy.get_param("~zcbf_a2_ellipse",    1.6))
         self.gamma = params.get("gamma", rospy.get_param("~zcbf_gamma_ellipse",  8.4))
         self.kappa = params.get("kappa", rospy.get_param("~zcbf_kappa_ellipse",  0.8))
-        self.a     = params.get("zcbf_order_a_ellipse", 0)
+        self.a     = params.get("a", rospy.get_param("~zcbf_order_a_ellipse", 0))
         
         self.pub   = cbf_pub
         self._last_time    = rospy.get_time()
@@ -107,7 +107,7 @@ class ZCBFFilter(object):
             # Extract rotation matrix (elements 13-21, reshaped to 3x3)
             if len(o) >= 22:
                 R_obs_flat = o[13:22]
-                R_obs = np.array(R_obs_flat).reshape(3, 3)
+                R_obs = np.array(R_obs_flat).reshape(3, 3)   # local → world
                 R_obs_T = R_obs.T
             else:
                 # Fallback to identity matrix for backward compatibility
@@ -120,32 +120,53 @@ class ZCBFFilter(object):
 
             r_vec = p_vec - x_o_vec
             # distance in the *scaled* (ellipsoid) space
-            r_local_tmp   = R_obs_T.dot(r_vec)
-            psi             = (
+            r_local_tmp = R_obs.T.dot(r_vec)             # world → local
+
+            # Detailed log for psi inputs
+            if should_log_debug and i == 0: # Log for the first obstacle being processed
+                rospy.loginfo_throttle(self._debug_log_interval, 
+                                     "[ZCBF_PSI_DEBUG_OBS%d] p_vec: [%.3f,%.3f,%.3f], x_o_vec: [%.3f,%.3f,%.3f]",
+                                     i, p_vec[0], p_vec[1], p_vec[2], x_o_vec[0], x_o_vec[1], x_o_vec[2])
+                rospy.loginfo_throttle(self._debug_log_interval,
+                                     "[ZCBF_PSI_DEBUG_OBS%d] r_vec: [%.3f,%.3f,%.3f], r_local_tmp: [%.3f,%.3f,%.3f]",
+                                     i, r_vec[0], r_vec[1], r_vec[2], r_local_tmp[0], r_local_tmp[1], r_local_tmp[2])
+                rospy.loginfo_throttle(self._debug_log_interval,
+                                     "[ZCBF_PSI_DEBUG_OBS%d] axes: a=%.3f,b=%.3f,c=%.3f, n=%.1f",
+                                     i, obs_a, obs_b, obs_c, obs_n)
+
+            # dimensionless super‐ellipsoid norm
+            psi = (
                   (abs(r_local_tmp[0]/obs_a))**obs_n
                 + (abs(r_local_tmp[1]/obs_b))**obs_n
                 + (abs(r_local_tmp[2]/obs_c))**obs_n
             ) ** (1.0/obs_n)
 
-            # for logging only – converts to "surface distance"
-            dist_val      = (psi - 1.0) * min(obs_a, obs_b, obs_c)
-            min_axis = min(obs_a, obs_b, obs_c)
+            # signed distance to super‐ellipsoid surface (in meters)
+            dist_val = (psi - 1.0) * min(obs_a, obs_b, obs_c)
 
-            psi_enter = 1.0 + self.cbf_enter / min_axis
-            psi_exit  = 1.0 + self.cbf_exit  / min_axis
+            # hysteresis thresholds (in meters)
+            enter_dist = self.cbf_enter
+            exit_dist  = self.cbf_exit
             
             # Log obstacle activation/deactivation
             was_active = self._obs_active[i]
             
-            if not self._obs_active[i]:
-                if psi > psi_enter:
+            if should_log_debug and i == 0: # Log for the first obstacle being processed
+                 rospy.loginfo_throttle(self._debug_log_interval,
+                                     "[ZCBF_PSI_DEBUG_OBS%d] Calculated psi: %.4f, dist_val: %.4f",
+                                     i, psi, dist_val)
+            
+            if not was_active:
+                # stay inactive until we come within `enter_dist` meters
+                if dist_val > enter_dist:
                     obs_status_info.append("Obs%d: INACTIVE (dist=%.3f > enter=%.3f)" % (i, dist_val, self.cbf_enter))
                     continue
                 else:
                     self._obs_active[i] = True
                     rospy.loginfo("[ZCBF_DEBUG] Obstacle %d ACTIVATED at distance %.3f (enter_thresh=%.3f)", i, dist_val, self.cbf_enter)
             else:
-                if psi > psi_exit:
+                # deactivate once we exceed `exit_dist` meters
+                if dist_val > exit_dist:
                     self._obs_active[i] = False
                     rospy.loginfo("[ZCBF_DEBUG] Obstacle %d DEACTIVATED at distance %.3f (exit_thresh=%.3f)", i, dist_val, self.cbf_exit)
                     obs_status_info.append("Obs%d: DEACTIVATED (dist=%.3f > exit=%.3f)" % (i, dist_val, self.cbf_exit))
@@ -167,7 +188,7 @@ class ZCBFFilter(object):
             sig_p_val = -a1_a2_val / sig_p_denominator_val
             sig_pp_val = -2.0 * sig_p_val * self.a2 * a2_s_val / sig_p_denominator_val
 
-            # ------- super-ellipsoid L-p norm (p = n) -----------------------
+            # --- super‐ellipsoid L-p norm (p = n) ---
             val_ax_abs = abs(r_local[0] / obs_a)
             val_by_abs = abs(r_local[1] / obs_b)
             val_cz_abs = abs(r_local[2] / obs_c)
@@ -179,7 +200,9 @@ class ZCBFFilter(object):
             sum_p = pow_x + pow_y + pow_z
             Phi_calc_val = sum_p ** (1.0 / obs_n)            #  ⟨—   root !
 
-            g_hat_calc_val = Phi_calc_val - 1.0 - sigma_calc_val
+            # now rescale into meters
+            g_hat_raw = Phi_calc_val - 1.0 - sigma_calc_val
+            g_hat_calc_val = g_hat_raw * min(obs_a, obs_b, obs_c)
 
             # Compute gradient in local frame
             inner_grad_x = (obs_n/obs_a) * np.sign(r_local[0]) * val_ax_abs ** (obs_n - 1)
@@ -195,14 +218,16 @@ class ZCBFFilter(object):
             grad_Phi_local = np.array([grad_Phi_x_local, grad_Phi_y_local, grad_Phi_z_local])
             
             # Transform gradient back to world frame
-            grad_Phi_vec_val = R_obs.dot(grad_Phi_local)
+            grad_Phi_vec_val = R_obs.dot(grad_Phi_local)  # back to world
 
             dot_r_dot_q_val = np.dot(r_dot_vec, q_vec)
             dot_r_R_Omxe3_val = np.dot(r_vec, R_Omxe3_val)
             dot_s_calc_val = dot_r_dot_q_val + dot_r_R_Omxe3_val
             
             dot_grad_Phi_r_dot_val = np.dot(grad_Phi_vec_val, r_dot_vec)
-            g_hat_d_calc_val = dot_grad_Phi_r_dot_val - sig_p_val * dot_s_calc_val
+            # derivative also lives in Φ-units → scale to meters
+            g_hat_d_raw = dot_grad_Phi_r_dot_val - sig_p_val * dot_s_calc_val
+            g_hat_d_calc_val = g_hat_d_raw * min(obs_a, obs_b, obs_c)
             
             h_internal_val = self.gamma * g_hat_calc_val + g_hat_d_calc_val
             

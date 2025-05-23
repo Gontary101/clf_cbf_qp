@@ -1,7 +1,7 @@
 import rospy
 
 # pick which filter backend via param: "zcbf", "c3bf", or "c3bf_adapter", or "zcbf_ellipsoid"
-filter_type = rospy.get_param("safety_filter_type", "zcbf_ellipsoid").lower()
+filter_type = rospy.get_param("~safety_filter_type", "zcbf_ellipsoid").lower()
 
 if filter_type == "c3bf_adapter":
     from components.c3bf_adapter import C3BFFilterAdapter as SAFETYFilter

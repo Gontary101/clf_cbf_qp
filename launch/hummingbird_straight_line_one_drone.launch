@@ -17,7 +17,7 @@
   <!-- ==================== COMMON CONTROLLER ARGUMENTS ==================== -->
   <!-- General -->
   <arg name="use_model_states_common"   default="true" />
-  <arg name="control_rate_common"       default="200.0" />
+  <arg name="control_rate_common"       default="1000.0" />
   <!-- Trajectory & Hover -->
   <arg name="trajectory_duration_common" default="50.0" />
   <arg name="fixed_yaw_deg_common"      default="180.0" />
@@ -52,6 +52,8 @@
   <group ns="$(arg ns1)">
     <node pkg="clf_cbf_qp" type="main_hummingbird_refactored_ellipsoid.py" name="clf_iris_trajectory_controller" output="screen">
       <!-- Load common physical parameters from YAML -->
+      <rosparam ns="~" command="load" file="$(find clf_cbf_qp)/config/common_drone_params_hummingbird.yaml" />
+      <rosparam ns="~" command="load" file="$(find clf_cbf_qp)/config/obstacles.yaml" />
       <rosparam command="load" file="$(find clf_cbf_qp)/config/common_drone_params_hummingbird.yaml" />
       <rosparam command="load" file="$(find clf_cbf_qp)/config/obstacles.yaml" />
 
@@ -69,7 +71,7 @@
       <param name="hover_vel_threshold" value="$(arg hover_vel_threshold_common)" />
       <param name="hover_stabilization_secs" value="$(arg hover_stabilization_secs_common)" />
       <param name="hover_yaw_ramp_secs" value="$(arg hover_yaw_ramp_secs_common)" />
-      <param name="dynamic_obstacles" value="$(arg dynamic_obstacles_common)" />
+      <param name="~dynamic_obstacles"    value="$(arg dynamic_obstacles_common)" />
     </node>
   </group>
 

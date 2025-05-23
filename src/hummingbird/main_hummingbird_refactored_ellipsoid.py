@@ -29,7 +29,7 @@ class Controller(object):
 
         # Initial takeoff configuration
         initial_takeoff_x = pget("takeoff_x", self.trajectory_module.get_p0()[0])
-        initial_takeoff_y = pget("takeoff_y", self.trajectory_module.get_p0()[1])
+        initial_takeoff_y = pget("takeoff_y", self.trajectory_module.get_p0()[1])   
         initial_takeoff_z = pget("takeoff_z", self.trajectory_module.get_p0()[2])
         
         # Gain configurations
@@ -39,7 +39,7 @@ class Controller(object):
         self.flight_state_manager = FlightStateManager(initial_takeoff_x, initial_takeoff_y, initial_takeoff_z, g_take, g_traj, self.trajectory_module)
         self.control_allocator = ControlAllocator(self.model)
 
-        # Static obstacles
+        # Static obstacles (ellipsoids: center, axes a,b,c, exponent n, …)
         self.static_obstacles = parse_obstacles(lambda param_name, default_val: pget(param_name, default_val))
         rospy.loginfo_once("[{}] Loaded {} static obstacles.".format(self.ns, self.static_obstacles.shape[0]))
 
@@ -188,19 +188,28 @@ class Controller(object):
         tracking_error = np.linalg.norm(p_act - pos_d_prev_scaling)
 
         sigma = 1.0
-        time_scale_dist = pget("time_scale_dist", 0.8)
-        k_e_time_scale = pget("time_scale_k", 0.5)
+        time_scale_dist = pget("time_scale_dist_ellipsoid", 1.0)
+        k_e_time_scale = pget("time_scale_k_ellipsoid", 0.5)
 
         # Check proximity to obstacles for time scaling
         if self.combined_obstacles.size > 0:
-            centers = self.combined_obstacles[:, :3]
-            radii = self.combined_obstacles[:, 9]
-            safety_r = self.model.r_drone
-            d2surf = np.linalg.norm(centers - p_act[None,:], axis=1) - (radii + safety_r)
+            centers   = self.combined_obstacles[:, :3]
+            axes      = self.combined_obstacles[:, 9:12]
+            exponents = self.combined_obstacles[:, 12]
+            safety_r  = self.model.r_drone
+
+            r_vecs = centers - p_act[None, :]
+
+            psi_vals = np.sum((np.abs(r_vecs/axes) ** exponents[:,None]),
+                              axis=1) ** (1.0/exponents)
+
+            # true distance to surface minus drone radius
+            min_axes = np.min(axes, axis=1)
+            d2surf   = (psi_vals - 1.0) * min_axes - safety_r
 
             if np.any(d2surf < time_scale_dist):
                 sigma = 1.0 / (1.0 + k_e_time_scale * tracking_error)
-                sigma = max(sigma, pget("time_scale_min", 0.4))
+                sigma = max(sigma, pget("time_scale_min_ellipsoid", 0.4))
                 
                 if self.DBG and self.log_event_counter == 0:
                     min_d2surf = np.min(d2surf)

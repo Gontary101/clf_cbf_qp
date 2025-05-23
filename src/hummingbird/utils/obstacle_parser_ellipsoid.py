@@ -138,7 +138,6 @@ class GazeboObstacleProcessor(object):
         nx = max(1, int(round(lx / (2 * r_sphere))))
         ny = max(1, int(round(ly / (2 * r_sphere))))
         nz = max(1, int(round(lz / (2 * r_sphere))))
-
         # Spacing between sphere centers
         dx = lx / nx if nx > 0 else 0
         dy = ly / ny if ny > 0 else 0
@@ -251,7 +250,7 @@ class GazeboObstacleProcessor(object):
         if combined.size == 0:
             return combined
         # Range filter
-        cbf_range = float(self.pget_func("cbf_active_range_ellipse", 8.0))
+        cbf_range = float(self.pget_func("~cbf_active_range_ellipse", 8.0))
         dists = np.linalg.norm(combined[:,:3] - current_drone_p_vec_numpy[None,:], axis=1)
         combined = combined[dists < cbf_range]
         return combined
