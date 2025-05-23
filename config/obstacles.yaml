@@ -54,6 +54,17 @@ cbf_hysteresis_margin:  0.0
 zcbf_s_min:             -50000
 cbf_gamma:             30.0
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Ellipsoid
+zcbf_a1_ellipse:       1.0
+zcbf_a2_ellipse:       0.5
+zcbf_gamma_ellipse:    0.4
+zcbf_kappa_ellipse:    0.4
+zcbf_order_a_ellipse:  0
+cbf_active_range_ellipse:       4.0
+cbf_hysteresis_margin_ellipse:  0.0 
+zcbf_s_min_ellipse:             -50000
+
 
 
 
