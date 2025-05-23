@@ -9,7 +9,7 @@ from std_msgs.msg import Float64MultiArray
 
 import utils.dynamics_utils2 as dyn
 from utils.dynamics_utils2 import pget
-from utils.obstacle_parser import parse_obstacles, GazeboObstacleProcessor
+from utils.obstacle_parser_ellipsoid import parse_obstacles, GazeboObstacleProcessor
 from components.trajectory_module_straight import TrajectoryModuleStraight
 from components import (
     StateEstimator, FlightStateManager, ControlAllocator, SafetyManager, ActuationHandler, TelemetryPublisher
@@ -24,25 +24,26 @@ class Controller(object):
         self.use_gz = pget("use_model_states", False)
 
         self.model = dyn.DroneModel()
-
         self.trajectory_module = TrajectoryModuleStraight()
-
         self.state_estimator = StateEstimator()
 
+        # Initial takeoff configuration
         initial_takeoff_x = pget("takeoff_x", self.trajectory_module.get_p0()[0])
         initial_takeoff_y = pget("takeoff_y", self.trajectory_module.get_p0()[1])
         initial_takeoff_z = pget("takeoff_z", self.trajectory_module.get_p0()[2])
         
+        # Gain configurations
         g_take = [pget("k_take{}".format(n), dflt) for n, dflt in zip(("pos1", "pos2", "att1", "att2"), (0.22, 0.8, 2.05, 4.1))]
         g_traj = [pget("k_traj{}".format(n), dflt) for n, dflt in zip(("pos1", "pos2", "att1", "att2"), (0.75, 4.1, 16.00, 32.0))]
         
         self.flight_state_manager = FlightStateManager(initial_takeoff_x, initial_takeoff_y, initial_takeoff_z, g_take, g_traj, self.trajectory_module)
-
         self.control_allocator = ControlAllocator(self.model)
 
+        # Static obstacles
         self.static_obstacles = parse_obstacles(lambda param_name, default_val: pget(param_name, default_val))
         rospy.loginfo_once("[{}] Loaded {} static obstacles.".format(self.ns, self.static_obstacles.shape[0]))
 
+        # Multi-drone awareness
         try:
             all_ns_str = pget("all_drone_namespaces", "[]")
             self.all_drone_namespaces = ast.literal_eval(all_ns_str)
@@ -54,6 +55,7 @@ class Controller(object):
             rospy.signal_shutdown("Configuration Error")
             return
         
+        # Dynamic obstacle processor
         self.gazebo_obstacle_processor = GazeboObstacleProcessor(
             ns=self.ns, 
             all_drone_namespaces=self.all_drone_namespaces, 
@@ -61,48 +63,62 @@ class Controller(object):
         )
         self.combined_obstacles = np.empty((0, 10), dtype=float)
 
-        cbf_params = dict(
-            beta=pget("zcbf_beta", 1.5),
-            a1=pget("zcbf_a1", 1.5),
-            a2=pget("zcbf_a2", 1.6),
-            gamma=pget("zcbf_gamma", 8.4),
-            kappa=pget("zcbf_kappa", 0.8),
-            order_a=pget("zcbf_order_a", 0)
-        )
+        # CBF parameters - ellipsoid or standard
+        if pget("safety_filter_type", "").lower() == "zcbf_ellipsoid":
+            cbf_params = dict(
+                a1   = pget("zcbf_a1_ellipse",   1.0),
+                a2   = pget("zcbf_a2_ellipse",   0.5),
+                gamma= pget("zcbf_gamma_ellipse",0.4),
+                kappa= pget("zcbf_kappa_ellipse",0.4),
+                order_a = pget("zcbf_order_a_ellipse", 0),
+            )
+        else:
+            cbf_params = dict(
+                beta = pget("zcbf_beta", 1.5),
+                a1   = pget("zcbf_a1",   1.5),
+                a2   = pget("zcbf_a2",   1.6),
+                gamma= pget("zcbf_gamma",8.4),
+                kappa= pget("zcbf_kappa",0.8),
+                order_a = pget("zcbf_order_a", 0),
+            )
+        
+        # Safety manager setup
         self.cbf_slack_pub = rospy.Publisher("~cbf/slack", Float64MultiArray, queue_size=1)
         self.safety_manager = SafetyManager(self.model, self.static_obstacles, cbf_params, self.cbf_slack_pub)
 
+        # Actuation setup
         motor_cmd_topic = pget("motor_command_topic", "command/motor_speed")
         self.cmd_pub = rospy.Publisher(motor_cmd_topic, Actuators, queue_size=1)
         self.actuation_handler = ActuationHandler(self.model, self.cmd_pub)
 
         self.telemetry_publisher = TelemetryPublisher()
 
+        # State tracking variables
         self.prev_phase_name = None
         self.t_traj = 0.0
         self.t_last = rospy.Time.now().to_sec()
         self.t_last_scale_update = self.t_last
         
+        # Logging configuration
         self.LOG_T = pget("loop_log_period", 0.5)
         self.DBG = pget("debug_logging_enabled", True)
+        self.log_event_counter = 0
 
         self.last_odom_msg = None
 
+        # ROS subscribers
         if self.use_gz:
             model_states_topic = pget("model_states_topic", "/gazebo/model_states")
-            self.sub = rospy.Subscriber(model_states_topic,
-                                        ModelStates, self.cb_model_combined,
-                                        queue_size=5, buff_size=2**24)
+            self.sub = rospy.Subscriber(model_states_topic, ModelStates, self.cb_model_combined, queue_size=5, buff_size=2**24)
         else:
             odometry_topic_suffix = pget("odometry_topic_suffix", "/ground_truth/odometry")
-            self.sub = rospy.Subscriber(self.ns + odometry_topic_suffix,
-                                        Odometry, self.cb_odom, queue_size=10)
+            self.sub = rospy.Subscriber(self.ns + odometry_topic_suffix, Odometry, self.cb_odom, queue_size=10)
         
+        # Control timer
         self.control_rate = pget("control_rate", 200.0)
-        self.timer = rospy.Timer(rospy.Duration(1.0 / self.control_rate),
-                                 self.loop, reset=True)
+        self.timer = rospy.Timer(rospy.Duration(1.0 / self.control_rate), self.loop, reset=True)
 
-        rospy.loginfo("[{}] Refactored controller initialized with control rate {}Hz and log period {}s.".format(self.ns, self.control_rate, self.LOG_T))
+        rospy.loginfo("[{}] Controller initialized with control rate {}Hz".format(self.ns, self.control_rate))
         rospy.on_shutdown(self.shutdown)
 
     def cb_odom(self, msg):
@@ -118,6 +134,7 @@ class Controller(object):
                 rospy.logwarn_throttle(5.0, "[{}] Own state not found in /gazebo/model_states".format(self.ns))
                 return
         
+        # Convert to Odometry format
         o = Odometry()
         o.header.stamp = rospy.Time.now()
         o.header.frame_id = "world" 
@@ -126,9 +143,73 @@ class Controller(object):
         o.twist.twist = msg.twist[idx]
         self.last_odom_msg = o
 
+        # Process dynamic obstacles
         if self.gazebo_obstacle_processor:
             self.gazebo_obstacle_processor.process_model_states_msg(msg)
 
+    def _combine_obstacles(self, current_pos_numpy):
+        """Combine static and dynamic obstacles into a single array."""
+        if self.use_gz and hasattr(self, 'gazebo_obstacle_processor'):
+            env_and_other_drone_obs = self.gazebo_obstacle_processor.get_combined_obstacles(current_pos_numpy)
+        else:
+            env_and_other_drone_obs = np.empty((0, 10), dtype=float)
+        
+        # Combine obstacle arrays
+        parts = [obs_array for obs_array in (self.static_obstacles, env_and_other_drone_obs) if obs_array.size > 0]
+        if parts:
+            combined = np.vstack(parts)
+        else:
+            combined = np.empty((0, 10), dtype=float)
+        
+        # Debug logging
+        if self.DBG and self.log_event_counter == 0:
+            static_count = self.static_obstacles.shape[0] if self.static_obstacles.size > 0 else 0
+            dynamic_count = env_and_other_drone_obs.shape[0] if env_and_other_drone_obs.size > 0 else 0
+            total_count = combined.shape[0] if combined.size > 0 else 0
+            
+            rospy.loginfo_throttle(self.LOG_T, "[%s] Obstacles: Static=%d, Dynamic=%d, Total=%d", 
+                                 self.ns, static_count, dynamic_count, total_count)
+            
+            if total_count > 0:
+                dists = np.sqrt(np.sum((combined[:, :3] - current_pos_numpy)**2, axis=1))
+                closest_dist = np.min(dists)
+                rospy.loginfo_throttle(self.LOG_T, "[%s] Closest obstacle: %.3fm", self.ns, closest_dist)
+        
+        return combined
+
+    def _update_trajectory_scaling(self, now_sec, current_kinematics):
+        """Update trajectory time scaling based on obstacle proximity."""
+        dt_real = now_sec - self.t_last_scale_update
+        if dt_real < 0:
+            dt_real = 0 
+
+        pos_d_prev_scaling, _, _, _, _ = self.trajectory_module.get_reference(self.t_traj)
+        p_act = current_kinematics["p_vec"]
+        tracking_error = np.linalg.norm(p_act - pos_d_prev_scaling)
+
+        sigma = 1.0
+        time_scale_dist = pget("time_scale_dist", 0.8)
+        k_e_time_scale = pget("time_scale_k", 0.5)
+
+        # Check proximity to obstacles for time scaling
+        if self.combined_obstacles.size > 0:
+            centers = self.combined_obstacles[:, :3]
+            radii = self.combined_obstacles[:, 9]
+            safety_r = self.model.r_drone
+            d2surf = np.linalg.norm(centers - p_act[None,:], axis=1) - (radii + safety_r)
+
+            if np.any(d2surf < time_scale_dist):
+                sigma = 1.0 / (1.0 + k_e_time_scale * tracking_error)
+                sigma = max(sigma, pget("time_scale_min", 0.4))
+                
+                if self.DBG and self.log_event_counter == 0:
+                    min_d2surf = np.min(d2surf)
+                    rospy.loginfo_throttle(self.LOG_T, "[%s] Time scaling: d2surf=%.3f, sigma=%.3f", 
+                                         self.ns, min_d2surf, sigma)
+
+        self.t_traj += sigma * dt_real
+        self.t_last_scale_update = now_sec
+        return sigma
 
     def loop(self, event):
         if self.last_odom_msg is None:
@@ -138,68 +219,33 @@ class Controller(object):
         now = rospy.Time.now()
         now_sec = now.to_sec()
 
+        # Process current state
         current_kinematics = self.state_estimator.process_odometry(self.last_odom_msg, self.use_gz)
         current_pos_numpy = current_kinematics["p_vec"]
 
-        if self.use_gz and hasattr(self, 'gazebo_obstacle_processor'):
-            env_and_other_drone_obs = self.gazebo_obstacle_processor.get_combined_obstacles(current_pos_numpy)
-        else:
-            env_and_other_drone_obs = np.empty((0, 10), dtype=float)
+        # Update combined obstacles
+        self.combined_obstacles = self._combine_obstacles(current_pos_numpy)
         
-        parts = [obs_array for obs_array in (self.static_obstacles, env_and_other_drone_obs) if obs_array.size > 0]
-        if parts:
-            self.combined_obstacles = np.vstack(parts)
-            max_active_total = int(pget("zcbf_max_active_spheres", 5)) 
-            if self.combined_obstacles.shape[0] > max_active_total:
-                dists_sq = np.sum((self.combined_obstacles[:, :3] - current_pos_numpy)**2, axis=1)
-                indices = np.argsort(dists_sq)[:max_active_total]
-                self.combined_obstacles = self.combined_obstacles[indices]
-        else:
-            self.combined_obstacles = np.empty((0, 10), dtype=float)
-        
+        # Update ZCBF obstacles
         if hasattr(self.safety_manager, 'zcbf'):
              self.safety_manager.zcbf.obs = self.combined_obstacles
         else:
-            rospy.logwarn_throttle(5.0, "[{}] ZCBF object not found directly on safety_manager. Obstacles not updated in ZCBF.".format(self.ns))
+            rospy.logwarn_throttle(5.0, "[{}] ZCBF object not found on safety_manager".format(self.ns))
 
-
+        # Flight state management
         refs_fsm, current_gains = self.flight_state_manager.update_state(now, current_kinematics)
         current_phase_name = refs_fsm["state_name"]
         t_traj_fsm = refs_fsm["t_traj_secs"]
 
+        # Handle trajectory phase transitions
         if current_phase_name == "TRAJ" and self.prev_phase_name != "TRAJ":
             self.t_traj = t_traj_fsm
             self.t_last_scale_update = now_sec
             rospy.loginfo("[{}] TRAJ phase entered. Initial t_traj: {:.2f}s".format(self.ns, self.t_traj))
 
+        # Update reference signals with time scaling
         if current_phase_name == "TRAJ":
-            dt_real = now_sec - self.t_last_scale_update
-            if dt_real < 0:
-                dt_real = 0 
-
-            pos_d_prev_scaling, _, _, _, _ = self.trajectory_module.get_reference(self.t_traj)
-            p_act = current_kinematics["p_vec"]
-            tracking_error = np.linalg.norm(p_act - pos_d_prev_scaling)
-
-            # --- only slow down when *actually* near an obstacle
-            sigma = 1.0
-            time_scale_dist = pget("time_scale_dist", 0.8)
-            k_e_time_scale = pget("time_scale_k", 0.5)
-
-            if self.combined_obstacles.size > 0:
-                centers = self.combined_obstacles[:, :3]
-                radii   = self.combined_obstacles[:, 9]
-                safety_r = self.model.r_drone
-                d2surf = np.linalg.norm(centers - p_act[None,:], axis=1) - (radii + safety_r)
-
-                # if *any* obstacle within the clearance, apply time‐scale
-                if np.any(d2surf < time_scale_dist):
-                    sigma = 1.0 / (1.0 + k_e_time_scale * tracking_error)
-                    sigma = max(sigma, pget("time_scale_min", 0.4))
-
-            self.t_traj += sigma * dt_real
-            self.t_last_scale_update = now_sec
-
+            sigma = self._update_trajectory_scaling(now_sec, current_kinematics)
             posd, vd, ad, yd, rd = self.trajectory_module.get_reference(self.t_traj)
             reference_signals = {"tgt": posd, "vd": vd, "ad": ad, "yd": yd, "rd": rd, 
                                  "t_traj_secs": self.t_traj, "state_name": current_phase_name, "sigma": sigma}
@@ -211,22 +257,35 @@ class Controller(object):
         self.prev_phase_name = current_phase_name
         self.t_last = now_sec
 
+        # Compute control
         clf_output_dict = self.control_allocator.compute_nominal_control(current_kinematics, reference_signals, current_gains)
         U_nominal_clf = clf_output_dict["U_nom"]
 
-        U_filtered, _ = self.safety_manager.filter_control(current_phase_name, U_nominal_clf, current_kinematics, current_gains, reference_signals)
+        # Apply safety filter
+        U_filtered, slack_values = self.safety_manager.filter_control(current_phase_name, U_nominal_clf, current_kinematics, current_gains, reference_signals)
 
+        # Debug logging for control and safety
+        if self.DBG and self.log_event_counter == 0:
+            U_diff = np.linalg.norm(U_filtered - U_nominal_clf)
+            is_filtered = U_diff > 1e-4
+            
+            rospy.loginfo_throttle(self.LOG_T, "[%s] Control: U_nom=[%.3f,%.3f,%.3f,%.3f], filtered=%s, diff=%.6f", 
+                                 self.ns, U_nominal_clf[0], U_nominal_clf[1], U_nominal_clf[2], U_nominal_clf[3], is_filtered, U_diff)
+            
+            if slack_values is not None and len(slack_values) > 0:
+                slack_norm = np.linalg.norm(slack_values)
+                rospy.loginfo_throttle(self.LOG_T, "[%s] Slack: count=%d, norm=%.6f", 
+                                     self.ns, len(slack_values), slack_norm)
+
+        # Generate motor commands
         _, w_sq_final = self.actuation_handler.generate_and_publish_motor_commands(U_filtered, now)
 
+        # Publish telemetry
         self.telemetry_publisher.publish_telemetry(current_kinematics, current_phase_name, U_filtered, w_sq_final, clf_output_dict, reference_signals, U_nominal_clf)
 
+        # Periodic logging
         if self.DBG:
-            if not hasattr(self, 'log_event_counter'):
-                self.log_event_counter = 0
-            
             self.log_event_counter += 1
-            
-            
             if (self.log_event_counter * (1.0 / self.control_rate)) >= self.LOG_T:
                 self.log_event_counter = 0
                 p = current_kinematics.get("p_vec", np.zeros(3))
@@ -240,8 +299,7 @@ class Controller(object):
                 )
 
     def shutdown(self):
-        rospy.loginfo("[{}] Shutting down refactored controller. Sending stop commands.".format(self.ns))
-        rospy.loginfo("[{}] Shutting down refactored controller. Sending stop commands.".format(self.ns))
+        rospy.loginfo("[{}] Shutting down controller. Sending stop commands.".format(self.ns))
         if hasattr(self, 'actuation_handler') and self.actuation_handler is not None:
             for _ in range(10):
                 self.actuation_handler.send_single_stop_command()
@@ -254,7 +312,7 @@ if __name__ == "__main__":
     rospy.init_node("clf_hummingbird_refactored_controller", anonymous=True)
     try:
         c = Controller()
-        rospy.loginfo("[{}] Refactored controller started successfully.".format(c.ns if hasattr(c, 'ns') else 'hummingbird'))
+        rospy.loginfo("[{}] Controller started successfully.".format(c.ns if hasattr(c, 'ns') else 'hummingbird'))
         rospy.spin()
     except rospy.ROSInterruptException:
         rospy.loginfo("ROS interrupt received. Shutting down.")

@@ -49,7 +49,7 @@ zcbf_gamma:             8.4
 zcbf_kappa:             0.8
 zcbf_order_a:           0
 cbf_active_range:       4.0
-zcbf_max_active_spheres: 5
+zcbf_max_active_spheres: 20
 cbf_hysteresis_margin:  0.0 
 zcbf_s_min:             -50000
 cbf_gamma:             30.0
@@ -61,7 +61,7 @@ zcbf_a2_ellipse:       0.6
 zcbf_gamma_ellipse:    2.4
 zcbf_kappa_ellipse:    0.4
 zcbf_order_a_ellipse:  0
-cbf_active_range_ellipse:       4.0
+cbf_active_range_ellipse:       8.0
 cbf_hysteresis_margin_ellipse:  0.0 
 zcbf_s_min_ellipse:             -50000
 max_ellipsoid_exponent: 4

@@ -176,6 +176,7 @@ catkin_install_python(PROGRAMS
   src/hummingbird/main_helix.py
   src/hummingbird/main_hummingbird_refactored.py
   src/hummingbird/ellipsoid_plotter_node.py
+  src/hummingbird/main_hummingbird_refactored_ellipsoid.py
 
   # If you have other python scripts in src/ or src/modular/ you want to install:
   # src/helix_plotter.py  <-- Assuming this is also one you want to make available
